@@ -10,9 +10,17 @@
             overflow: hidden;
         }
 
-        .container {
-            background-color: initial; /* Intenta establecer el fondo a su valor inicial */
+        body {
+            /* Fondo blanco por defecto */
+            background-color: white;
         }
+
+        @media (prefers-color-scheme: dark) {
+            /* Modo oscuro */
+            body {
+                background-color: #333; /* Gris oscuro */
+                color: white; /* Texto blanco */
+            }
 
         img {
             width: 100vw;
