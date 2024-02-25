@@ -3,24 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orange 2</title>
+    <title>Orange</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: initial; /* Asegura que el fondo sea transparente */
+        }
+
+        .container {
+            background-color: initial; /* Intenta establecer el fondo a su valor inicial */
         }
 
         img {
-            width: 100%;
-            height: auto;
-            display: block;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
         }
     </style>
 </head>
 <body>
 
-    <img src="../Naranja.jpg" alt="Naranja" />
+    <div class="container">
+        <img src="../Naranja.jpg" alt="Naranja" />
+    </div>
 
 </body>
 </html>
