@@ -8,32 +8,277 @@
         body {
             margin: 0;
             overflow: hidden;
-        }
-
-        body {
-            /* Fondo blanco por defecto */
             background-color: white;
         }
-
+        
         @media (prefers-color-scheme: dark) {
-            /* Modo oscuro */
             body {
-                background-color: #333; /* Gris oscuro */
-                color: white; /* Texto blanco */
+                background-color: #333;
+                color: white;
             }
+        }
 
-        img {
+        .background-img {
+            position: absolute;
             width: 100vw;
             height: 100vh;
             object-fit: cover;
+            opacity: 0.3;
+            z-index: -1;
         }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+
     </style>
 </head>
 <body>
+    <img src="../Naranja.jpg" alt="Naranja" class="background-img" />
+    
 
-    <div class="container">
-        <img src="../Naranja.jpg" alt="Naranja" />
-    </div>
 
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Configurar el canvas para que ocupe toda la pantalla
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Tonos de naranja
+        const orangeShades = [
+            '#FF8C00',  // Dark Orange
+            '#FF7F50',  // Coral
+            '#FFA500',  // Orange
+            '#FF6347',  // Tomato
+            '#FF4500',  // Red Orange
+            '#FFB347',  // Peach
+            '#FFCC5C',  // Saffron
+            '#FF9500',  // Orange Peel
+        ];
+
+        class Ball {
+            constructor(x, y, radius, color) {
+                this.x = x || Math.random() * (canvas.width - 40) + 20;
+                this.y = y || Math.random() * (canvas.height - 40) + 20;
+                this.radius = radius || Math.random() * 15 + 10;
+                this.color = color || orangeShades[Math.floor(Math.random() * orangeShades.length)];
+                
+                // Velocidad aleatoria
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = (Math.random() - 0.5) * 8;
+                
+                // Propiedades físicas
+                this.mass = this.radius * 0.1;
+                this.friction = 0.99;
+                this.bounce = 0.8;
+            }
+
+            update() {
+            // Aplicar una fuerza constante para mantener movimiento
+            if (Math.abs(this.vx) < 0.5) this.vx += (Math.random() - 0.5) * 0.2;
+            if (Math.abs(this.vy) < 0.5) this.vy += (Math.random() - 0.5) * 0.2;
+
+                // Actualizar posición
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Colisión con bordes
+                if (this.x - this.radius <= 0) {
+                    this.x = this.radius;
+                    this.vx = -this.vx * this.bounce;
+                }
+                if (this.x + this.radius >= canvas.width) {
+                    this.x = canvas.width - this.radius;
+                    this.vx = -this.vx * this.bounce;
+                }
+                if (this.y - this.radius <= 0) {
+                    this.y = this.radius;
+                    this.vy = -this.vy * this.bounce;
+                }
+                if (this.y + this.radius >= canvas.height) {
+                    this.y = canvas.height - this.radius;
+                    this.vy = -this.vy * this.bounce;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                
+                // Gradiente para dar efecto 3D
+                const gradient = ctx.createRadialGradient(
+                    this.x - this.radius * 0.3, 
+                    this.y - this.radius * 0.3, 
+                    0,
+                    this.x, 
+                    this.y, 
+                    this.radius
+                );
+                gradient.addColorStop(0, this.lightenColor(this.color, 40));
+                gradient.addColorStop(1, this.color);
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Sombra
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                ctx.shadowBlur = 5;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                
+                ctx.closePath();
+                
+                // Resetear sombra
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            }
+
+            lightenColor(color, percent) {
+                const num = parseInt(color.replace("#", ""), 16);
+                const amt = Math.round(2.55 * percent);
+                const R = (num >> 16) + amt;
+                const G = (num >> 8 & 0x00FF) + amt;
+                const B = (num & 0x0000FF) + amt;
+                return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+                    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+                    (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+            }
+        }
+
+        // Función para detectar colisión entre dos círculos
+        function isColliding(ball1, ball2) {
+            const dx = ball1.x - ball2.x;
+            const dy = ball1.y - ball2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < ball1.radius + ball2.radius;
+        }
+
+        // Función para resolver colisión entre dos pelotas
+        function resolveCollision(ball1, ball2) {
+            const dx = ball2.x - ball1.x;
+            const dy = ball2.y - ball1.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Normalizar el vector de colisión
+            const nx = dx / distance;
+            const ny = dy / distance;
+            
+            // Velocidad relativa
+            const dvx = ball2.vx - ball1.vx;
+            const dvy = ball2.vy - ball1.vy;
+            
+            // Velocidad relativa en dirección de colisión
+            const dvn = dvx * nx + dvy * ny;
+            
+            // No resolver si las velocidades se separan
+            if (dvn > 0) return;
+            
+            // Coeficiente de restitución
+            const e = 0.8;
+            
+            // Impulso escalar
+            const impulse = 2 * dvn / (ball1.mass + ball2.mass);
+            
+            // Actualizar velocidades
+            ball1.vx += impulse * ball2.mass * nx * e;
+            ball1.vy += impulse * ball2.mass * ny * e;
+            ball2.vx -= impulse * ball1.mass * nx * e;
+            ball2.vy -= impulse * ball1.mass * ny * e;
+            
+            // Separar las pelotas para evitar superposición
+            const overlap = ball1.radius + ball2.radius - distance;
+            if (overlap > 0) {
+                const separationX = nx * overlap * 0.5;
+                const separationY = ny * overlap * 0.5;
+                ball1.x -= separationX;
+                ball1.y -= separationY;
+                ball2.x += separationX;
+                ball2.y += separationY;
+            }
+        }
+
+        // Array de pelotas
+        let balls = [];
+
+        // Crear pelotas iniciales
+        function initBalls(count = 15) {
+            balls = [];
+            for (let i = 0; i < count; i++) {
+                balls.push(new Ball());
+            }
+        }
+
+        function addBall() {
+            balls.push(new Ball());
+        }
+
+        function removeBall() {
+            if (balls.length > 0) {
+                balls.pop();
+            }
+        }
+
+        function resetBalls() {
+            initBalls(15);
+        }
+
+        function updateBallCount() {
+            // Función vacía - ya no necesaria
+        }
+
+        // Agregar pelota al hacer clic
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            balls.push(new Ball(x, y));
+        });
+
+        // Reiniciar con clic derecho
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault(); // Prevenir menú contextual
+            resetBalls();
+        });
+
+        // Loop de animación
+        function animate() {
+            // Limpiar canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Actualizar cada pelota
+            balls.forEach(ball => ball.update());
+            
+            // Verificar colisiones entre pelotas
+            for (let i = 0; i < balls.length; i++) {
+                for (let j = i + 1; j < balls.length; j++) {
+                    if (isColliding(balls[i], balls[j])) {
+                        resolveCollision(balls[i], balls[j]);
+                    }
+                }
+            }
+            
+            // Dibujar cada pelota
+            balls.forEach(ball => ball.draw());
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Inicializar y comenzar animación
+        initBalls();
+        animate();
+    </script>
 </body>
 </html>
