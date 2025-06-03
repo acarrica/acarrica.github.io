@@ -32,6 +32,9 @@
         #trailCanvas {
             pointer-events: none; /* para que no interfiera con los clics */
         }
+        #explosionCanvas {
+            pointer-events: none; /* para que no interfiera con los clics */
+        }
     </style>
     
     <!-- Favicon: un círculo naranja SVG embebido como data URI -->
@@ -43,6 +46,7 @@
 </head>
 <body>
     <canvas id="trailCanvas"></canvas>
+    <canvas id="explosionCanvas"></canvas>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -50,15 +54,20 @@
         const ctx = canvas.getContext('2d');
         const trailCanvas = document.getElementById('trailCanvas');
         const trailCtx = trailCanvas.getContext('2d');
+        const explosionCanvas = document.getElementById('explosionCanvas');
+        const explosionCtx = explosionCanvas.getContext('2d');
 
-        // Ajusta ambos canvas al tamaño de la ventana
+        // Ajusta todos los canvas al tamaño de la ventana
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             trailCanvas.width = window.innerWidth;
             trailCanvas.height = window.innerHeight;
+            explosionCanvas.width = window.innerWidth;
+            explosionCanvas.height = window.innerHeight;
             // Cada vez que cambie tamaño, limpiamos el de rastros
             trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+            explosionCtx.clearRect(0, 0, explosionCanvas.width, explosionCanvas.height);
         }
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
@@ -181,6 +190,135 @@
             }
         }
 
+        // Clase para las partículas de explosión
+        class ExplosionParticle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.vx = (Math.random() - 0.5) * 20;
+                this.vy = (Math.random() - 0.5) * 20;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.02 + 0.01;
+                this.size = Math.random() * 8 + 4;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                this.life -= this.decay;
+                this.size *= 0.99;
+            }
+
+            draw() {
+                if (this.life <= 0) return;
+                
+                explosionCtx.save();
+                explosionCtx.globalAlpha = this.life;
+                explosionCtx.beginPath();
+                explosionCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                
+                // Gradiente para la partícula
+                const gradient = explosionCtx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, this.size
+                );
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+                
+                explosionCtx.fillStyle = gradient;
+                explosionCtx.fill();
+                explosionCtx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        // Clase para manejar explosiones
+        class Explosion {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.particles = [];
+                this.radius = 0;
+                this.maxRadius = 300;
+                this.growing = true;
+                this.life = 1.0;
+                
+                // Crear partículas (aún más partículas para explosión masiva)
+                for (let i = 0; i < 70; i++) {
+                    const color = orangeShades[Math.floor(Math.random() * orangeShades.length)];
+                    this.particles.push(new ExplosionParticle(x, y, color));
+                }
+            }
+
+            update() {
+                if (this.growing && this.radius < this.maxRadius) {
+                    this.radius += 8;
+                } else {
+                    this.growing = false;
+                    this.life -= 0.02;
+                }
+                
+                // Actualizar partículas
+                this.particles.forEach(p => p.update());
+                this.particles = this.particles.filter(p => !p.isDead());
+            }
+
+            draw() {
+                if (this.life <= 0) return;
+                
+                // Dibujar onda expansiva
+                if (this.growing) {
+                    explosionCtx.save();
+                    explosionCtx.globalAlpha = this.life * 0.3;
+                    explosionCtx.beginPath();
+                    explosionCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    explosionCtx.strokeStyle = orangeShades[0];
+                    explosionCtx.lineWidth = 4;
+                    explosionCtx.stroke();
+                    
+                    // Círculo interior brillante
+                    explosionCtx.globalAlpha = this.life * 0.6;
+                    explosionCtx.beginPath();
+                    explosionCtx.arc(this.x, this.y, this.radius * 0.7, 0, Math.PI * 2);
+                    const gradient = explosionCtx.createRadialGradient(
+                        this.x, this.y, 0,
+                        this.x, this.y, this.radius * 0.7
+                    );
+                    gradient.addColorStop(0, orangeShades[2]);
+                    gradient.addColorStop(1, 'rgba(255, 110, 5, 0)');
+                    explosionCtx.fillStyle = gradient;
+                    explosionCtx.fill();
+                    explosionCtx.restore();
+                }
+                
+                // Dibujar partículas
+                this.particles.forEach(p => p.draw());
+            }
+
+            isDead() {
+                return this.life <= 0 && this.particles.length === 0;
+            }
+
+            // Verificar si una pelota está en el rango de la explosión
+            affectsBall(ball) {
+                if (!this.growing) return false;
+                const dx = ball.x - this.x;
+                const dy = ball.y - this.y;
+                const distance = Math.hypot(dx, dy);
+                return distance <= this.radius;
+            }
+        }
+
+        // Arrays para manejar pelotas y explosiones
+        let balls = [];
+        let explosions = [];
+
         // Detección de colisión círculo–círculo
         function isColliding(a, b) {
             const dx = a.x - b.x;
@@ -205,7 +343,7 @@
             // Si se alejan, no los resolvemos
             if (vn > 0) return;
 
-            const e = 1; // coeficiente de restitución (0.8 funciona también)
+            const e = 1; // coeficiente de restitución
             const impulse = (-(1 + e) * vn) / (1 / a.mass + 1 / b.mass);
             const ix = impulse * nx;
             const iy = impulse * ny;
@@ -227,15 +365,22 @@
             }
         }
 
-        let balls = [];
         function initBalls(count = 15) {
             balls = [];
             for (let i = 0; i < count; i++) {
                 balls.push(new Ball());
             }
         }
+
         function resetBalls() {
             initBalls(15);
+            explosions = [];
+        }
+
+        function createExplosion() {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            explosions.push(new Explosion(x, y));
         }
 
         // Al hacer clic, agregamos una pelota en la posición clickeada
@@ -245,6 +390,7 @@
             const y = e.clientY - rect.top;
             balls.push(new Ball(x, y));
         });
+
         // Al hacer clic derecho, reiniciamos
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
@@ -252,19 +398,39 @@
         });
 
         function animate() {
-            // 1) Limpiamos únicamente el canvas de pelotas para re-dibujar
+            // Limpiar canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            explosionCtx.clearRect(0, 0, explosionCanvas.width, explosionCanvas.height);
 
-            // 2) En el canvas de rastros, usamos “destination-out” para que el rastro se desvanezca
+            // Desvanecimiento del rastro
             trailCtx.globalCompositeOperation = 'destination-out';
             trailCtx.fillStyle = 'rgba(0, 0, 0, 0.03)'; 
             trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
             trailCtx.globalCompositeOperation = 'source-over';
 
-            // 3) Actualizamos física de cada pelota
+            // Actualizar explosiones
+            explosions.forEach(explosion => explosion.update());
+            explosions = explosions.filter(explosion => !explosion.isDead());
+
+            // Verificar qué pelotas son afectadas por explosiones
+            const ballsToRemove = [];
+            explosions.forEach(explosion => {
+                balls.forEach((ball, index) => {
+                    if (explosion.affectsBall(ball)) {
+                        ballsToRemove.push(index);
+                    }
+                });
+            });
+
+            // Remover pelotas afectadas (de mayor a menor índice para no alterar los índices)
+            [...new Set(ballsToRemove)].sort((a, b) => b - a).forEach(index => {
+                balls.splice(index, 1);
+            });
+
+            // Actualizar física de pelotas restantes
             balls.forEach(b => b.update());
 
-            // 4) Comprobamos colisiones entre pares
+            // Colisiones entre pelotas
             for (let i = 0; i < balls.length; i++) {
                 for (let j = i + 1; j < balls.length; j++) {
                     if (isColliding(balls[i], balls[j])) {
@@ -273,25 +439,30 @@
                 }
             }
 
-            // 5) Dibujamos las pelotas (y sus rastros) en sus respectivos canvas
+            // Dibujar pelotas
             balls.forEach(b => b.draw());
+
+            // Dibujar explosiones
+            explosions.forEach(explosion => explosion.draw());
 
             requestAnimationFrame(animate);
         }
 
-        // Inicializamos y arrancamos la animación
+        // Inicializar
         initBalls();
         animate();
 
-        // ─────────────────────────────────────────────
-        // Aquí viene la parte nueva: cada segundo se simula un “click”
-        // que añade una pelota en posición aleatoria:
+        // Agregar pelota cada segundo
         setInterval(() => {
             const xAzar = Math.random() * canvas.width;
             const yAzar = Math.random() * canvas.height;
             balls.push(new Ball(xAzar, yAzar));
         }, 1000);
-        // ─────────────────────────────────────────────
+
+        // Crear explosión cada 3 segundos
+        setInterval(() => {
+            createExplosion();
+        }, 3000);
 
     </script>
 </body>
