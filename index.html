@@ -24,6 +24,18 @@
                un overlay semitransparente aquí o bajar el brillo con filter */
             /* Por ahora lo dejamos sin color de fondo porque ya usamos la img fija */
         }
+        
+    /* ------------------------------
+       Filtro para intensificar color
+       ------------------------------
+       Ajusta estos valores (1.0 = 100%) hasta que obtengas la intensidad deseada.
+       Ejemplos típicos:
+         saturate(1.5)   →  150% de saturación
+         contrast(1.2)   →  120% de contraste
+         brightness(1.1) →  110% de brillo
+    */
+    filter: saturate(1.5) contrast(1.2) brightness(1.1);
+
 
         /* El canvas de pelotas (canvas) y el canvas de rastros (trailCanvas) 
            quedan encima del body, pero transparentes, de modo que se vea la imagen fija. */
