@@ -17,28 +17,11 @@
         body {
             background: url("../Naranja.jpg") no-repeat center center fixed;
             background-size: cover;
+
+            /* Filtro para intensificar color */
+            filter: saturate(1.5) contrast(1.2) brightness(1.1);
         }
 
-        @media (prefers-color-scheme: dark) {
-            /* Si quieres oscurecer ligeramente el fondo en modo dark, puedes usar
-               un overlay semitransparente aquí o bajar el brillo con filter */
-            /* Por ahora lo dejamos sin color de fondo porque ya usamos la img fija */
-        }
-        
-    /* ------------------------------
-       Filtro para intensificar color
-       ------------------------------
-       Ajusta estos valores (1.0 = 100%) hasta que obtengas la intensidad deseada.
-       Ejemplos típicos:
-         saturate(1.5)   →  150% de saturación
-         contrast(1.2)   →  120% de contraste
-         brightness(1.1) →  110% de brillo
-    */
-    filter: saturate(1.5) contrast(1.2) brightness(1.1);
-
-
-        /* El canvas de pelotas (canvas) y el canvas de rastros (trailCanvas) 
-           quedan encima del body, pero transparentes, de modo que se vea la imagen fija. */
         canvas {
             position: absolute;
             top: 0;
@@ -52,7 +35,6 @@
     </style>
 </head>
 <body>
-    <!-- Ya no hace falta el <img> puesto que lo ponemos en CSS en el body -->
     <canvas id="trailCanvas"></canvas>
     <canvas id="canvas"></canvas>
 
@@ -75,16 +57,16 @@
         window.addEventListener('resize', resizeCanvas);
 
         // Tonos de naranja
-const orangeShades = [
-    '#FF1104',
-    '#FE5303',
-    '#FF6E05',
-    '#FF4603',
-    '#FFD302',
-    '#FF3E03',
-    '#FF7A03',
-    '#FEA104',
-];
+        const orangeShades = [
+            '#FF1104',
+            '#FE5303',
+            '#FF6E05',
+            '#FF4603',
+            '#FFD302',
+            '#FF3E03',
+            '#FF7A03',
+            '#FEA104',
+        ];
 
         class Ball {
             constructor(x, y, radius, color) {
@@ -161,7 +143,7 @@ const orangeShades = [
                 ctx.shadowBlur = 5;
                 ctx.shadowOffsetX = 2;
                 ctx.shadowOffsetY = 2;
-                ctx.fill(); // ya habíamos hecho fill antes, pero recuerda que la sombra se aplica al último fill/stroke
+                ctx.fill(); 
                 
                 // Restablecemos sombras
                 ctx.shadowColor = 'transparent';
@@ -216,7 +198,7 @@ const orangeShades = [
             // Si se alejan, no los resolvemos
             if (vn > 0) return;
 
-            const e = 1; // coeficiente de restitución (el original era 0.8), pero van perdiendo velocidad con al chocar con los bordes
+            const e = 1; // coeficiente de restitución (0.8 funciona también)
             const impulse = (-(1 + e) * vn) / (1 / a.mass + 1 / b.mass);
             const ix = impulse * nx;
             const iy = impulse * ny;
@@ -226,7 +208,7 @@ const orangeShades = [
             b.vx += ix / b.mass;
             b.vy += iy / b.mass;
 
-            // Separar un poco las pelotas para evitar que queden superpuestas
+            // Separar un poco las pelotas para evitar superposición
             const overlap = (a.radius + b.radius) - dist;
             if (overlap > 0) {
                 const sepX = nx * (overlap / 2);
@@ -266,14 +248,9 @@ const orangeShades = [
             // 1) Limpiamos únicamente el canvas de pelotas para re-dibujar
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 2) En el canvas de rastros (trailCanvas), en lugar de pintar un rectángulo blanco
-            //    vamos a usar una pequeña capa “borradora” con composite op 'destination-out'
-            //    para que las pintadas viejas se vayan desvaneciendo y queden transparentes.
+            // 2) En el canvas de rastros, usamos “destination-out” para que el rastro se desvanezca
             trailCtx.globalCompositeOperation = 'destination-out';
             trailCtx.fillStyle = 'rgba(0, 0, 0, 0.03)'; 
-            // El alfa (0.03) controla la velocidad de “desvanecimiento”: 
-            //    - Si es muy baja (ej. 0.01), el rastro tardará más en desaparecer.
-            //    - Si es más alta (ej. 0.05), el rastro desaparecerá más rápido.
             trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
             trailCtx.globalCompositeOperation = 'source-over';
 
@@ -295,9 +272,20 @@ const orangeShades = [
             requestAnimationFrame(animate);
         }
 
-        // Arrancamos
+        // Inicializamos y arrancamos la animación
         initBalls();
         animate();
+
+        // ─────────────────────────────────────────────
+        // Aquí viene la parte nueva: cada segundo se simula un “click”
+        // que añade una pelota en posición aleatoria:
+        setInterval(() => {
+            const xAzar = Math.random() * canvas.width;
+            const yAzar = Math.random() * canvas.height;
+            balls.push(new Ball(xAzar, yAzar));
+        }, 1000);
+        // ─────────────────────────────────────────────
+
     </script>
 </body>
 </html>
