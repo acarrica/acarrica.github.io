@@ -5,48 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orange</title>
     <style>
-        body {
+        html, body {
             margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
-            background-color: white;
         }
-        
+
+        /* Ponemos la imagen de fondo directamente en el body, con background-attachment: fixed */
+        body {
+            background: url("../Naranja.jpg") no-repeat center center fixed;
+            background-size: cover;
+        }
+
         @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #333;
-                color: white;
-            }
+            /* Si quieres oscurecer ligeramente el fondo en modo dark, puedes usar
+               un overlay semitransparente aquí o bajar el brillo con filter */
+            /* Por ahora lo dejamos sin color de fondo porque ya usamos la img fija */
         }
 
-        .background-img {
-            position: absolute;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-            opacity: 1;
-            z-index: -1;
-        }
-
+        /* El canvas de pelotas (canvas) y el canvas de rastros (trailCanvas) 
+           quedan encima del body, pero transparentes, de modo que se vea la imagen fija. */
         canvas {
-            display: block;
-            cursor: crosshair;
-        }
-
-        #trailCanvas {
             position: absolute;
             top: 0;
             left: 0;
-            pointer-events: none;
+            display: block;
+            cursor: crosshair;
         }
-
-
+        #trailCanvas {
+            pointer-events: none; /* para que no interfiera con los clics */
+        }
     </style>
 </head>
 <body>
-    <img src="../Naranja.jpg" alt="Naranja" class="background-img" />
-    
-
-
+    <!-- Ya no hace falta el <img> puesto que lo ponemos en CSS en el body -->
     <canvas id="trailCanvas"></canvas>
     <canvas id="canvas"></canvas>
 
@@ -56,14 +50,15 @@
         const trailCanvas = document.getElementById('trailCanvas');
         const trailCtx = trailCanvas.getContext('2d');
 
-        // Configurar el canvas para que ocupe toda la pantalla
+        // Ajusta ambos canvas al tamaño de la ventana
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             trailCanvas.width = window.innerWidth;
             trailCanvas.height = window.innerHeight;
+            // Cada vez que cambie tamaño, limpiamos el de rastros
+            trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
         }
-        
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
@@ -81,31 +76,29 @@
 
         class Ball {
             constructor(x, y, radius, color) {
-                this.x = x || Math.random() * (canvas.width - 40) + 20;
-                this.y = y || Math.random() * (canvas.height - 40) + 20;
-                this.radius = radius || Math.random() * 15 + 10;
+                this.x = x !== undefined ? x : Math.random() * (canvas.width - 40) + 20;
+                this.y = y !== undefined ? y : Math.random() * (canvas.height - 40) + 20;
+                this.radius = radius || (Math.random() * 15 + 10);
                 this.color = color || orangeShades[Math.floor(Math.random() * orangeShades.length)];
                 
-                // Velocidad aleatoria
+                // Velocidad aleatoria inicial
                 this.vx = (Math.random() - 0.5) * 8;
                 this.vy = (Math.random() - 0.5) * 8;
                 
                 // Propiedades físicas
                 this.mass = this.radius * 0.1;
-                this.friction = 0.99;
                 this.bounce = 0.8;
             }
 
             update() {
-            // Aplicar una fuerza constante para mantener movimiento
-            if (Math.abs(this.vx) < 0.5) this.vx += (Math.random() - 0.5) * 0.2;
-            if (Math.abs(this.vy) < 0.5) this.vy += (Math.random() - 0.5) * 0.2;
+                // Si la velocidad es muy baja, darle un empujoncito para que no se quede parado
+                if (Math.abs(this.vx) < 0.5) this.vx += (Math.random() - 0.5) * 0.2;
+                if (Math.abs(this.vy) < 0.5) this.vy += (Math.random() - 0.5) * 0.2;
 
-                // Actualizar posición
                 this.x += this.vx;
                 this.y += this.vy;
 
-                // Colisión con bordes
+                // Colisiones con bordes
                 if (this.x - this.radius <= 0) {
                     this.x = this.radius;
                     this.vx = -this.vx * this.bounce;
@@ -125,24 +118,24 @@
             }
 
             draw() {
-                // Dibujar rastro en el canvas de rastros
+                // Dibuja en el canvas de rastros un círculo semitransparente
                 trailCtx.beginPath();
                 trailCtx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
                 trailCtx.fillStyle = this.hexToRgba(this.color, 0.3);
                 trailCtx.fill();
                 trailCtx.closePath();
 
-                // Dibujar la pelota principal en el canvas principal
+                // Dibuja la pelota principal en el canvas "visible"
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 
-                // Gradiente para dar efecto 3D
+                // Creamos un gradiente radial para dar efecto 3D
                 const gradient = ctx.createRadialGradient(
-                    this.x - this.radius * 0.3, 
-                    this.y - this.radius * 0.3, 
+                    this.x - this.radius * 0.3,
+                    this.y - this.radius * 0.3,
                     0,
-                    this.x, 
-                    this.y, 
+                    this.x,
+                    this.y,
                     this.radius
                 );
                 gradient.addColorStop(0, this.lightenColor(this.color, 40));
@@ -150,20 +143,20 @@
                 
                 ctx.fillStyle = gradient;
                 ctx.fill();
-                
-                // Sombra
+
+                // Sombra (sólo para la pelota principal)
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
                 ctx.shadowBlur = 5;
                 ctx.shadowOffsetX = 2;
                 ctx.shadowOffsetY = 2;
+                ctx.fill(); // ya habíamos hecho fill antes, pero recuerda que la sombra se aplica al último fill/stroke
                 
-                ctx.closePath();
-                
-                // Resetear sombra
+                // Restablecemos sombras
                 ctx.shadowColor = 'transparent';
                 ctx.shadowBlur = 0;
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;
+                ctx.closePath();
             }
 
             hexToRgba(hex, alpha) {
@@ -179,120 +172,103 @@
                 const R = (num >> 16) + amt;
                 const G = (num >> 8 & 0x00FF) + amt;
                 const B = (num & 0x0000FF) + amt;
-                return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
-                    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
-                    (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+                return "#" + (0x1000000 + 
+                    (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+                    (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+                    (B < 255 ? (B < 1 ? 0 : B) : 255)
+                ).toString(16).slice(1);
             }
         }
 
-        // Función para detectar colisión entre dos círculos
-        function isColliding(ball1, ball2) {
-            const dx = ball1.x - ball2.x;
-            const dy = ball1.y - ball2.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            return distance < ball1.radius + ball2.radius;
+        // Detección de colisión círculo–círculo
+        function isColliding(a, b) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dist = Math.hypot(dx, dy);
+            return dist < a.radius + b.radius;
         }
 
-        // Función para resolver colisión entre dos pelotas
-        function resolveCollision(ball1, ball2) {
-            const dx = ball2.x - ball1.x;
-            const dy = ball2.y - ball1.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            // Normalizar el vector de colisión
-            const nx = dx / distance;
-            const ny = dy / distance;
-            
+        // Resolver colisión inelástica entre dos pelotas
+        function resolveCollision(a, b) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const dist = Math.hypot(dx, dy);
+            // Vector unitario normal
+            const nx = dx / dist;
+            const ny = dy / dist;
             // Velocidad relativa
-            const dvx = ball2.vx - ball1.vx;
-            const dvy = ball2.vy - ball1.vy;
-            
-            // Velocidad relativa en dirección de colisión
-            const dvn = dvx * nx + dvy * ny;
-            
-            // No resolver si las velocidades se separan
-            if (dvn > 0) return;
-            
-            // Coeficiente de restitución
-            const e = 0.8;
-            
-            // Impulso escalar
-            const impulse = 2 * dvn / (ball1.mass + ball2.mass);
-            
-            // Actualizar velocidades
-            ball1.vx += impulse * ball2.mass * nx * e;
-            ball1.vy += impulse * ball2.mass * ny * e;
-            ball2.vx -= impulse * ball1.mass * nx * e;
-            ball2.vy -= impulse * ball1.mass * ny * e;
-            
-            // Separar las pelotas para evitar superposición
-            const overlap = ball1.radius + ball2.radius - distance;
+            const dvx = b.vx - a.vx;
+            const dvy = b.vy - a.vy;
+            // Velocidad relativa en la dirección del choque
+            const vn = dvx * nx + dvy * ny;
+            // Si se alejan, no los resolvemos
+            if (vn > 0) return;
+
+            const e = 0.8; // coeficiente de restitución
+            const impulse = (-(1 + e) * vn) / (1 / a.mass + 1 / b.mass);
+            const ix = impulse * nx;
+            const iy = impulse * ny;
+
+            a.vx -= ix / a.mass;
+            a.vy -= iy / a.mass;
+            b.vx += ix / b.mass;
+            b.vy += iy / b.mass;
+
+            // Separar un poco las pelotas para evitar que queden superpuestas
+            const overlap = (a.radius + b.radius) - dist;
             if (overlap > 0) {
-                const separationX = nx * overlap * 0.5;
-                const separationY = ny * overlap * 0.5;
-                ball1.x -= separationX;
-                ball1.y -= separationY;
-                ball2.x += separationX;
-                ball2.y += separationY;
+                const sepX = nx * (overlap / 2);
+                const sepY = ny * (overlap / 2);
+                a.x -= sepX;
+                a.y -= sepY;
+                b.x += sepX;
+                b.y += sepY;
             }
         }
 
-        // Array de pelotas
         let balls = [];
-
-        // Crear pelotas iniciales
         function initBalls(count = 15) {
             balls = [];
             for (let i = 0; i < count; i++) {
                 balls.push(new Ball());
             }
         }
-
-        function addBall() {
-            balls.push(new Ball());
-        }
-
-        function removeBall() {
-            if (balls.length > 0) {
-                balls.pop();
-            }
-        }
-
         function resetBalls() {
             initBalls(15);
         }
 
-        function updateBallCount() {
-            // Función vacía - ya no necesaria
-        }
-
-        // Agregar pelota al hacer clic
-        canvas.addEventListener('click', (e) => {
+        // Al hacer clic, agregamos una pelota en la posición clickeada
+        canvas.addEventListener('click', e => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             balls.push(new Ball(x, y));
         });
-
-        // Reiniciar con clic derecho
-        canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault(); // Prevenir menú contextual
+        // Al hacer clic derecho, reiniciamos
+        canvas.addEventListener('contextmenu', e => {
+            e.preventDefault();
             resetBalls();
         });
 
-        // Loop de animación
         function animate() {
-            // Limpiar solo el canvas principal (pelotitas)
+            // 1) Limpiamos únicamente el canvas de pelotas para re-dibujar
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Aplicar fade solo al canvas de rastros
-            trailCtx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+
+            // 2) En el canvas de rastros (trailCanvas), en lugar de pintar un rectángulo blanco
+            //    vamos a usar una pequeña capa “borradora” con composite op 'destination-out'
+            //    para que las pintadas viejas se vayan desvaneciendo y queden transparentes.
+            trailCtx.globalCompositeOperation = 'destination-out';
+            trailCtx.fillStyle = 'rgba(0, 0, 0, 0.03)'; 
+            // El alfa (0.03) controla la velocidad de “desvanecimiento”: 
+            //    - Si es muy baja (ej. 0.01), el rastro tardará más en desaparecer.
+            //    - Si es más alta (ej. 0.05), el rastro desaparecerá más rápido.
             trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
-            
-            // Actualizar cada pelota
-            balls.forEach(ball => ball.update());
-            
-            // Verificar colisiones entre pelotas
+            trailCtx.globalCompositeOperation = 'source-over';
+
+            // 3) Actualizamos física de cada pelota
+            balls.forEach(b => b.update());
+
+            // 4) Comprobamos colisiones entre pares
             for (let i = 0; i < balls.length; i++) {
                 for (let j = i + 1; j < balls.length; j++) {
                     if (isColliding(balls[i], balls[j])) {
@@ -300,14 +276,14 @@
                     }
                 }
             }
-            
-            // Dibujar cada pelota
-            balls.forEach(ball => ball.draw());
-            
+
+            // 5) Dibujamos las pelotas (y sus rastros) en sus respectivos canvas
+            balls.forEach(b => b.draw());
+
             requestAnimationFrame(animate);
         }
 
-        // Inicializar y comenzar animación
+        // Arrancamos
         initBalls();
         animate();
     </script>
