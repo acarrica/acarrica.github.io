@@ -381,6 +381,68 @@
             const x = Math.random() * canvas.width;
             const y = Math.random() * canvas.height;
             explosions.push(new Explosion(x, y));
+            
+            // Reproducir sonido de explosión
+            playExplosionSound();
+        }
+
+        // Función para generar y reproducir sonido de explosión
+        function playExplosionSound() {
+            try {
+                // Crear AudioContext si no existe
+                if (!window.audioContext) {
+                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const audioCtx = window.audioContext;
+                
+                // Crear oscilador para el sonido base de la explosión
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                // Conectar oscilador -> ganancia -> salida
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                // Configurar el sonido de explosión
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
+                
+                // Configurar el volumen (envelope)
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                
+                // Reproducir el sonido
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.5);
+                
+                // Agregar ruido blanco para efecto más realista
+                const bufferSize = audioCtx.sampleRate * 0.3;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * 0.1;
+                }
+                
+                const noiseSource = audioCtx.createBufferSource();
+                const noiseGain = audioCtx.createGain();
+                
+                noiseSource.buffer = buffer;
+                noiseSource.connect(noiseGain);
+                noiseGain.connect(audioCtx.destination);
+                
+                noiseGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                
+                noiseSource.start(audioCtx.currentTime);
+                noiseSource.stop(audioCtx.currentTime + 0.3);
+                
+            } catch (error) {
+                console.log('Audio no disponible:', error);
+            }
         }
 
         // Al hacer clic, agregamos una pelota en la posición clickeada
@@ -389,6 +451,15 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             balls.push(new Ball(x, y));
+            
+            // Inicializar AudioContext en el primer clic del usuario (requerido por navegadores)
+            if (!window.audioContext) {
+                try {
+                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (error) {
+                    console.log('Audio no soportado');
+                }
+            }
         });
 
         // Al hacer clic derecho, reiniciamos
