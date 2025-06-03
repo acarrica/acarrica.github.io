@@ -386,7 +386,7 @@
             playExplosionSound();
         }
 
-        // Función para generar y reproducir sonido de explosión
+        // Función para generar y reproducir sonido de explosión más simple y potente
         function playExplosionSound() {
             try {
                 // Crear AudioContext si no existe
@@ -396,52 +396,35 @@
                 
                 const audioCtx = window.audioContext;
                 
-                // Crear oscilador para el sonido base de la explosión
+                // Resumir el contexto si está suspendido
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                
+                // Crear un sonido más simple pero efectivo
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 
-                // Conectar oscilador -> ganancia -> salida
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
                 
-                // Configurar el sonido de explosión
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
+                // Sonido de explosión más fuerte y distintivo
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
                 
-                // Configurar el volumen (envelope)
+                // Volumen más alto
                 gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.005);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
                 
-                // Reproducir el sonido
                 oscillator.start(audioCtx.currentTime);
-                oscillator.stop(audioCtx.currentTime + 0.5);
+                oscillator.stop(audioCtx.currentTime + 0.3);
                 
-                // Agregar ruido blanco para efecto más realista
-                const bufferSize = audioCtx.sampleRate * 0.3;
-                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                const data = buffer.getChannelData(0);
-                
-                for (let i = 0; i < bufferSize; i++) {
-                    data[i] = (Math.random() * 2 - 1) * 0.1;
-                }
-                
-                const noiseSource = audioCtx.createBufferSource();
-                const noiseGain = audioCtx.createGain();
-                
-                noiseSource.buffer = buffer;
-                noiseSource.connect(noiseGain);
-                noiseGain.connect(audioCtx.destination);
-                
-                noiseGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-                
-                noiseSource.start(audioCtx.currentTime);
-                noiseSource.stop(audioCtx.currentTime + 0.3);
+                console.log('Sonido de explosión reproducido');
                 
             } catch (error) {
-                console.log('Audio no disponible:', error);
+                console.log('Error de audio:', error);
             }
         }
 
@@ -452,12 +435,16 @@
             const y = e.clientY - rect.top;
             balls.push(new Ball(x, y));
             
-            // Inicializar AudioContext en el primer clic del usuario (requerido por navegadores)
+            // Inicializar AudioContext en el primer clic del usuario
             if (!window.audioContext) {
                 try {
                     window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('AudioContext inicializado');
+                    
+                    // Reproducir un sonido de prueba al hacer el primer clic
+                    playExplosionSound();
                 } catch (error) {
-                    console.log('Audio no soportado');
+                    console.log('Audio no soportado:', error);
                 }
             }
         });
