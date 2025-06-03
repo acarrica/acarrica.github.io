@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pelotas con Explosión</title>
+    <!-- Antes tenías <title>&#8203;</title>. Ahora pon un título normal -->
+    <title>&#8203;</title>
     <style>
         html, body {
             margin: 0;
@@ -33,6 +34,8 @@
         type="image/svg+xml"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='32' fill='%23FF6E05'/></svg>"
     >
+    <!-- Incluimos un elemento audio oculto para reproducir sonido de explosión -->
+    <audio id="explosionSound" src="explosion.mp3" preload="auto"></audio>
 </head>
 <body>
     <canvas id="trailCanvas"></canvas>
@@ -54,11 +57,14 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Array de tonos naranjas
+        // Colores naranjas
         const orangeShades = [
             '#FF1104', '#FE5303', '#FF6E05', '#FF4603',
             '#FFD302', '#FF3E03', '#FF7A03', '#FEA104',
         ];
+
+        // Cargamos el audio de explosión una sola vez
+        const explosionSound = document.getElementById('explosionSound');
 
         class Ball {
             constructor(x, y, radius, color) {
@@ -70,7 +76,6 @@
                 this.vy = (Math.random() - 0.5) * 32 + 8;
                 this.mass = this.radius * 0.1;
                 this.bounce = 0.8;
-                // Vida en fotogramas: cuando llegue a 0, la pelota ya no se dibuja
                 this.life = 600; // ~10 segundos a 60fps
             }
 
@@ -84,7 +89,6 @@
                 this.x += this.vx;
                 this.y += this.vy;
 
-                // Rebotes con los bordes
                 if (this.x - this.radius <= 0) {
                     this.x = this.radius;
                     this.vx = -this.vx * this.bounce;
@@ -105,14 +109,14 @@
 
             draw() {
                 if (this.life <= 0) return;
-                // Dibuja el rastro semitransparente
+                // Rastro semitransparente
                 trailCtx.beginPath();
                 trailCtx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
                 trailCtx.fillStyle = this.hexToRgba(this.color, 0.3);
                 trailCtx.fill();
                 trailCtx.closePath();
 
-                // Dibuja la pelota principal con gradiente 3D y sombra
+                // Pelota principal con gradiente y sombra
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 const gradient = ctx.createRadialGradient(
@@ -131,7 +135,6 @@
                 ctx.shadowOffsetX = 2;
                 ctx.shadowOffsetY = 2;
                 ctx.fill();
-                // Restablecemos sombras
                 ctx.shadowColor = 'transparent';
                 ctx.shadowBlur = 0;
                 ctx.shadowOffsetX = 0;
@@ -160,58 +163,55 @@
             }
         }
 
-        // Clase Explosion para manejar partículas de explosión
         class Explosion {
             constructor(x, y) {
                 this.particles = [];
                 this.initParticles(x, y);
+                // Reproducir sonido al crear la explosión
+                // Asegúrate de que explosionSound.src apunte a un archivo .mp3 válido
+                explosionSound.currentTime = 0;
+                explosionSound.play();
             }
 
             initParticles(cx, cy) {
-                const numParticles = 20; // Cantidad de partículas por explosión
+                const numParticles = 20;
                 for (let i = 0; i < numParticles; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const speed = Math.random() * 4 + 2; // velocidad aleatoria
+                    const speed = Math.random() * 4 + 2;
                     const vx = Math.cos(angle) * speed;
                     const vy = Math.sin(angle) * speed;
                     const color = orangeShades[Math.floor(Math.random() * orangeShades.length)];
-                    const radius = Math.random() * 4 + 2; // radio inicial pequeño
-                    const life = Math.random() * 30 + 30; // vida en fotogramas (30–60)
+                    const radius = Math.random() * 4 + 2;
+                    const life = Math.random() * 30 + 30;
                     this.particles.push({ x: cx, y: cy, vx, vy, color, radius, life });
                 }
             }
 
             update() {
-                // Recorremos partículas y actualizamos posición/vida
                 this.particles.forEach(p => {
                     if (p.life > 0) {
                         p.life--;
                         p.x += p.vx;
                         p.y += p.vy;
-                        // Hacemos que se vayan encogiendo:
                         p.radius *= 0.95;
-                        // Y algo de fricción:
                         p.vx *= 0.96;
                         p.vy *= 0.96;
                     }
                 });
-                // Filtramos las ya muertas
                 this.particles = this.particles.filter(p => p.life > 0 && p.radius > 0.5);
             }
 
             draw() {
                 this.particles.forEach(p => {
-                    const alpha = p.life / 60; // se va desvaneciendo
+                    const alpha = p.life / 60;
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = p.color.replace(/,[^\)]+\)/, `, ${alpha})`)
-                                    .replace(/^#([0-9A-F]{6})$/i, (m, c) => {
-                                        // Convertir hex a rgba manteniendo alpha
-                                        const r = parseInt(c.substr(0,2), 16);
-                                        const g = parseInt(c.substr(2,2), 16);
-                                        const b = parseInt(c.substr(4,2), 16);
-                                        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-                                    });
+                    // Convertimos el hex original a rgba conservando el alpha
+                    const hex = p.color;
+                    const r = parseInt(hex.slice(1, 3), 16);
+                    const g = parseInt(hex.slice(3, 5), 16);
+                    const b = parseInt(hex.slice(5, 7), 16);
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
                     ctx.fill();
                     ctx.closePath();
                 });
@@ -230,7 +230,7 @@
         }
 
         let balls = [];
-        let explosions = []; // Array de explosiones activas
+        let explosions = [];
 
         function initBalls(count = 15) {
             balls = [];
@@ -256,17 +256,12 @@
         const MAX_BALLS = 100;
 
         setInterval(() => {
-            // 1) Limpiamos pelotas muertas
             balls = balls.filter(b => b.life > 0);
-
-            // 2) Si excedemos MAX_BALLS, eliminamos las más antiguas
             if (balls.length >= MAX_BALLS) {
                 while (balls.length >= MAX_BALLS) {
                     balls.shift();
                 }
             }
-
-            // 3) Añadimos una bola nueva
             const xAzar = Math.random() * canvas.width;
             const yAzar = Math.random() * canvas.height;
             balls.push(new Ball(xAzar, yAzar));
@@ -274,47 +269,34 @@
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Desvanecemos el rastro
             trailCtx.globalCompositeOperation = 'destination-out';
             trailCtx.fillStyle = 'rgba(0, 0, 0, 0.03)';
             trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
             trailCtx.globalCompositeOperation = 'source-over';
 
-            // 1) Actualizamos todas las pelotas vivas
             balls.forEach(b => b.update());
 
-            // 2) Detección de colisiones y creación de explosiones
-            //    Recorremos pares (i < j) para no duplicar
             for (let i = 0; i < balls.length; i++) {
                 for (let j = i + 1; j < balls.length; j++) {
                     const ballA = balls[i];
                     const ballB = balls[j];
                     if (ballA.life > 0 && ballB.life > 0 && isColliding(ballA, ballB)) {
-                        // Punto de colisión aproximado (promedio de centros)
                         const cx = (ballA.x + ballB.x) / 2;
                         const cy = (ballA.y + ballB.y) / 2;
-                        // Creamos explosión en ese punto
                         explosions.push(new Explosion(cx, cy));
-                        // “Matamos” ambas pelotas
                         ballA.life = 0;
                         ballB.life = 0;
                     }
                 }
             }
 
-            // 3) Filtramos nuevamente las pelotas muertas (para no dibujarlas)
             balls = balls.filter(b => b.life > 0);
-
-            // 4) Dibujamos las pelotas vivas
             balls.forEach(b => b.draw());
 
-            // 5) Actualizamos y dibujamos explosiones
             explosions.forEach(exp => {
                 exp.update();
                 exp.draw();
             });
-            // 6) Filtramos explosiones terminadas
             explosions = explosions.filter(exp => exp.isAlive());
 
             requestAnimationFrame(animate);
