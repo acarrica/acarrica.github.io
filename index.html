@@ -70,7 +70,6 @@
                 this.vy = (Math.random() - 0.5) * 32 + 8;
                 this.mass = this.radius * 0.1;
                 this.bounce = 0.8;
-                // Eliminamos la propiedad life; agregamos flag alive
                 this.alive = true;
             }
 
@@ -265,7 +264,7 @@
             const xAzar = Math.random() * canvas.width;
             const yAzar = Math.random() * canvas.height;
             balls.push(new Ball(xAzar, yAzar));
-        }, 500);
+        }, 300);
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
