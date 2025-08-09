@@ -233,9 +233,6 @@
       statsEl.textContent = 'Error: ' + (err && err.message ? err.message : err);
     }
   }
-    render();
-    requestAnimationFrame(loop);
-  }
 
   function step(dt){
     const W = canvas.clientWidth, H = canvas.clientHeight;
