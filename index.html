@@ -171,7 +171,7 @@
   let trackPts=[]; let trackStats=null; let trackLen=1; let checkpoints=[];
 
   // Población
-  /** @type {Array<{x:number,y:number,a:number,v:number,alive:boolean,done:boolean,step:number,genome:Array<{steer:number,throttle:number}>,fitness:number,color:string,trail:Array<{x:number,y:number}>,trailAge:number,progress:number}>} */
+  /** @type {Array<{x:number,y:number,a:number,v:number,alive:boolean,done:boolean,step:number,genome:Array<{steer:number,throttle:number}>,fitness:number,color:string,trail:Array<{x:number,y:number}>,trailAge:number,progress:number,chk:number,onTrackTicks:number,centerSum:number,offTicks:number}>} */
   let pop=[];
 
   // =================== Pista ===================
@@ -222,13 +222,19 @@
     pop.length=0; bestProgress=0; finishedCount=0; stepIndex=0;
     for(let i=0;i<populationSize;i++){
       const g = genomes? cloneGenome(genomes[i%genomes.length]) : createGenome(geneSteps);
-      pop.push({x:start.x, y:start.y, a:ang, v:0, alive:true, done:false, step:0, genome:g, fitness:0, color:pickColor(i), trail:[], trailAge:0, progress:0});
+      pop.push({x:start.x, y:start.y, a:ang, v:0, alive:true, done:false, step:0, genome:g, fitness:0, color:pickColor(i), trail:[], trailAge:0, progress:0, chk:0, onTrackTicks:0, centerSum:0, offTicks:0});
     }
   }
 
   function evolve(){
     // fitness = mejor progreso alcanzado a lo largo del episodio
-    for(const a of pop) a.fitness = Math.max(0, a.progress);
+    const len = checkpoints.length || 1;
+    for (const a of pop) {
+      const progressScore = (a.chk || 0) / len; // progreso por checkpoints
+      const onTrackScore = (a.onTrackTicks || 0) / geneSteps; // tiempo en pista
+      const centerScore = (a.centerSum || 0) / Math.max(1, (a.onTrackTicks || 0)); // qué tan centrado estuvo
+      a.fitness = progressScore * 5 + onTrackScore * 0.5 + centerScore * 0.5; // progreso domina
+    }
 
     const totalFit = pop.reduce((s,a)=>s+a.fitness,0) || 1;
     const pick = ()=>{let r=Math.random()*totalFit; for(const a of pop){ r-=a.fitness; if(r<=0) return a;} return pop[pop.length-1]};
@@ -243,7 +249,7 @@
   function newCarFromGenome(genome){
     const start = trackPts[0]; const next = trackPts[1]||{x:start.x+1,y:start.y};
     const ang = Math.atan2(next.y-start.y, next.x-start.x);
-    return {x:start.x,y:start.y,a:ang,v:0,alive:true,done:false,step:0,genome,fitness:0,color:pickColor(Math.floor(Math.random()*9999)),trail:[],trailAge:0,progress:0};
+    return {x:start.x,y:start.y,a:ang,v:0,alive:true,done:false,step:0,genome,fitness:0,color:pickColor(Math.floor(Math.random()*9999)),trail:[],trailAge:0,progress:0, chk:0, onTrackTicks:0, centerSum:0, offTicks:0};
   }
 
   // =================== Simulación ===================
@@ -263,9 +269,9 @@
       if(!a.alive || a.done) continue; aliveCount++;
       const g=a.genome[a.step] || {steer:0, throttle:0};
       // Dinámica simple de auto (no-slip):
-      const maxSteer=2.2; // rad/s
-      const maxAccel=170; // px/s^2
-      const maxSpeed=320; // px/s
+      const maxSteer=3.0; // rad/s (subido para tomar curvas)
+      const maxAccel=220; // px/s^2 (un poco más de empuje)
+      const maxSpeed=340; // px/s
       const fric=baseFriction; // lineal
 
       a.a += g.steer * maxSteer * dt;
@@ -274,19 +280,41 @@
       a.x += Math.cos(a.a) * a.v * dt;
       a.y += Math.sin(a.a) * a.v * dt;
 
-      // Progreso sobre el polilíneo de la pista
-      const near=nearestOnPolyline({x:a.x,y:a.y}, trackStats);
-      a.progress = Math.max(a.progress, near.s / trackLen);
-      if(a.progress>=0.999){ a.done=true; finishedCount++; }
+      // Progreso por checkpoints + métrica de pista
+      const near = nearestOnPolyline({x:a.x,y:a.y}, trackStats);
+      // contador de tiempo dentro de pista y centrado
+      if (near.dist <= trackWidth*0.5 + 2) {
+        a.onTrackTicks++;
+        const centeriness = 1 - clamp(near.dist / (trackWidth*0.5 + 1e-6), 0, 1);
+        a.centerSum += centeriness;
+        a.offTicks = 0;
+      } else {
+        a.offTicks = (a.offTicks||0) + 1;
+      }
 
-      // Off‑track?
-      if(near.dist > trackWidth*0.5 + 4){ a.alive=false; }
+      // checkpoint actual
+      const cp = checkpoints[a.chk];
+      if (cp) {
+        const dx=a.x-cp.x, dy=a.y-cp.y;
+        if (dx*dx + dy*dy <= cp.r*cp.r) {
+          a.chk++;
+        }
+      }
+      // progreso normalizado (fallback: proyección sobre polilínea)
+      const chkFrac = (a.chk || 0) / Math.max(1, checkpoints.length);
+      const projFrac = near.s / trackLen;
+      a.progress = Math.max(a.progress, chkFrac, projFrac * 0.7);
+      if (a.chk >= checkpoints.length) { a.done = true; finishedCount++; }
+
+      // Off‑track duro solo si se aleja mucho tiempo
+      const hardLimit = trackWidth*0.8 + 10;
+      if (near.dist > hardLimit || a.offTicks > 20) { a.alive = false; }
 
       // trail
       a.trailAge++; if(a.trailAge%3===0){ a.trail.push({x:a.x,y:a.y}); if(a.trail.length>45) a.trail.shift(); }
 
       a.step++; if(a.step>=geneSteps) a.alive=false;
-      bestProgress=Math.max(bestProgress, a.progress);
+      bestProgress = Math.max(bestProgress, a.progress);
     }
     stepIndex++;
     // Termina gen si todos murieron o llegamos al límite
