@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Evolución Artificial – MVP (Vanilla JS)</title>
+  <title>Auto-Evolución – Autos que aprenden la pista (Vanilla JS)</title>
   <style>
     :root{
       --bg:#0f172a; /* slate-900 */
@@ -15,6 +15,7 @@
       --ok:#10b981; /* emerald-500 */
       --blue:#3b82f6; /* blue-500 */
       --rose:#f43f5e; /* rose-500 */
+      --road:#0b1222; /* darker road */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -37,16 +38,16 @@
     .row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px}
     .range{width:100%}
     details{margin-top:6px}
-    .grid-hint{position:absolute;inset:0;pointer-events:none}
+    .checkpoint{mix-blend-mode:screen}
   </style>
 </head>
 <body>
   <header class="header">
     <div style="display:flex;gap:12px;align-items:center">
-      <div style="font-weight:700;font-size:18px">Evolución Artificial 🧬</div>
-      <div class="muted" style="font-size:13px">Criaturas que aprenden a llegar al objetivo</div>
+      <div style="font-weight:700;font-size:18px">Auto‑Evolución 🚗🧬</div>
+      <div class="muted" style="font-size:13px">Autos que aprenden a recorrer una pista</div>
     </div>
-    <div class="muted" style="font-size:12px;display:none" id="hint-lg">Shift+arrastrar = obstáculo · Alt+click = borrar obstáculo · Arrastrá el objetivo</div>
+    <div class="muted" style="font-size:12px">Drag para mirar; Enter: siguiente gen; R: reset</div>
   </header>
 
   <main class="main">
@@ -61,11 +62,11 @@
       <div class="dock">
         <label class="muted" style="display:flex;align-items:center;gap:8px;font-size:13px">
           <span>Velocidad</span>
-          <input id="speed" class="range" type="range" min="1" max="12" step="1" value="1" />
+          <input id="speed" class="range" type="range" min="1" max="12" step="1" value="8" />
         </label>
         <label class="muted" style="display:flex;align-items:center;gap:8px;font-size:13px">
-          <span>Gravedad</span>
-          <input id="gravity" class="range" type="range" min="0" max="220" step="10" value="0" />
+          <span>Fricción</span>
+          <input id="fric" class="range" type="range" min="0" max="0.2" step="0.005" value="0.02" />
         </label>
       </div>
     </section>
@@ -73,32 +74,40 @@
     <aside class="control-pane">
       <section class="card">
         <h3>Parámetros genéticos</h3>
-        <div class="row"><span class="muted">Población</span><span id="lbl-pop">200</span></div>
-        <input id="populationSize" class="range" type="range" min="50" max="600" step="10" value="200" />
-        <div class="row"><span class="muted">Pasos por genoma</span><span id="lbl-steps">320</span></div>
-        <input id="geneSteps" class="range" type="range" min="120" max="600" step="10" value="320" />
-        <div class="row"><span class="muted">Mutación</span><span id="lbl-mutation">0.020</span></div>
-        <input id="mutationRate" class="range" type="range" min="0" max="0.2" step="0.005" value="0.02" />
-        <div class="row"><span class="muted">Elitismo</span><span id="lbl-elitism">4</span></div>
-        <input id="elitism" class="range" type="range" min="0" max="20" step="1" value="4" />
+        <div class="row"><span class="muted">Población</span><span id="lbl-pop">240</span></div>
+        <input id="populationSize" class="range" type="range" min="50" max="800" step="10" value="240" />
+        <div class="row"><span class="muted">Pasos por genoma</span><span id="lbl-steps">600</span></div>
+        <input id="geneSteps" class="range" type="range" min="200" max="1200" step="20" value="600" />
+        <div class="row"><span class="muted">Mutación</span><span id="lbl-mutation">0.050</span></div>
+        <input id="mutationRate" class="range" type="range" min="0" max="0.2" step="0.005" value="0.05" />
+        <div class="row"><span class="muted">Elitismo</span><span id="lbl-elitism">8</span></div>
+        <input id="elitism" class="range" type="range" min="0" max="30" step="1" value="8" />
         <div class="muted" style="font-size:12px;margin-top:6px">Cambiar población o pasos reinicia la simulación.</div>
       </section>
+
       <section class="card">
-        <h3>Obstáculos</h3>
-        <div class="muted" style="font-size:13px">Shift+arrastrar para dibujar · Alt+click para borrar</div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button id="btn-obs-clear" class="btn">Limpiar</button>
-          <button id="btn-obs-rand" class="btn">Aleatorios</button>
+        <h3>Pista</h3>
+        <div class="row"><span class="muted">Tipo</span>
+          <select id="trackType" style="background:#111827;color:#e5e7eb;border:1px solid #0b1222;border-radius:8px;padding:4px 8px">
+            <option value="oval">Óvalo</option>
+            <option value="s">S‑curve</option>
+            <option value="ocho">Figura 8</option>
+          </select>
         </div>
+        <div class="row"><span class="muted">Ancho (px)</span><span id="lbl-width">70</span></div>
+        <input id="trackWidth" class="range" type="range" min="40" max="120" step="2" value="70" />
+        <div class="muted" style="font-size:12px;margin-top:6px">La meta es completar la vuelta pasando por los checkpoints.</div>
       </section>
+
       <section class="card">
         <h3>Ayuda</h3>
         <ul class="muted" style="font-size:13px;line-height:1.5">
-          <li>Arrastrá el objetivo (círculo verde).</li>
-          <li>Forzá una nueva generación cuando quieras.</li>
-          <li>Probá mutación alta al inicio y reducí luego.</li>
+          <li>Los genes controlan <em>dirección</em> (giro) y <em>acelerador</em>.</li>
+          <li>Fitness = % de pista recorrida (progreso sobre el trazado).</li>
+          <li>Subí Mutación al principio, bajala cuando empiecen a mejorar.</li>
         </ul>
       </section>
+
       <section class="card">
         <h3>Tests</h3>
         <details>
@@ -110,260 +119,260 @@
   </main>
 
   <script>
-  // ======= Utilidades =======
+  // =================== Utilidades ===================
   const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+  const lerp = (a,b,t)=>a+(b-a)*t;
   function randn(mu=0,sigma=1){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();const z=Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);return mu+z*sigma}
-  function makeVec(){const a=Math.random()*Math.PI*2;const m=Math.random();return {ax:Math.cos(a)*m,ay:Math.sin(a)*m}}
-  function createGenome(steps){return Array.from({length:steps},makeVec)}
-  function cloneGenome(g){return g.map(v=>({ax:v.ax,ay:v.ay}))}
-  function mutateGenome(g, rate, sigma=0.35){for(let i=0;i<g.length;i++){if(Math.random()<rate){const v=g[i];v.ax=clamp(v.ax+randn(0,sigma),-1,1);v.ay=clamp(v.ay+randn(0,sigma),-1,1);const m=Math.hypot(v.ax,v.ay);if(m>1){v.ax/=m;v.ay/=m}}}}
-  function crossover(g1,g2){const out=new Array(g1.length);for(let i=0;i<g1.length;i++){out[i]=Math.random()<0.5?{...g1[i]}:{...g2[i]}}return out}
-  function pickColor(i){const p=["#60a5fa","#22c55e","#f59e0b","#e879f9","#a78bfa","#34d399","#f97316","#fb7185"];return p[i%p.length]}
   function safeFmt(v,d=0){return (typeof v==='number' && Number.isFinite(v))? v.toFixed(d) : '—'}
-  function formatBestDist(d){return Number.isFinite(d)? d.toFixed(1) : '∞'}
 
-  // ======= Estado global =======
-  const canvas = document.getElementById('sim');
-  const pane = document.getElementById('canvas-pane');
-  const statsEl = document.getElementById('stats');
+  function pointSegNearest(px,py,x1,y1,x2,y2){
+    const vx=x2-x1, vy=y2-y1; const wx=px-x1, wy=py-y1; const c1=vx*wx+vy*wy; const c2=vx*vx+vy*vy+1e-9;
+    const t=clamp(c1/c2,0,1); const nx=x1+t*vx, ny=y1+t*vy; const dx=px-nx, dy=py-ny; return {dist:Math.hypot(dx,dy), t, nx, ny};
+  }
 
-  let running = true;
-  let populationSize = 200;
-  let geneSteps = 320;
-  let mutationRate = 0.02;
-  let elitism = 4;
-  let speed = 1;       // steps por frame
-  let gravity = 0;     // px/s^2
+  function polylineStats(pts){
+    const segs=[]; let len=0; const cum=[0];
+    for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]; const L=Math.hypot(b.x-a.x,b.y-a.y); segs.push({a,b,L}); len+=L; cum.push(len); }
+    return {segs, len, cum};
+  }
 
-  let generation = 1;
-  let stepIndex = 0;
-  let bestDist = Infinity;
-  let reachedCount = 0;
-
-  // Se recalculan en el primer resize según el tamaño del canvas
-  const startPos = {x:80,y:520};
-  const target = {x:700,y:100,r:14,dragging:false};
-  let autoPlaced = false; // si aún no moviste el objetivo, reposiciono en resize
-
-  // Obstáculos iniciales (se regeneran en el primer resize para entrar en pantalla)
-  let obstacles = [];
-  const drawing = {drawing:false,x0:0,y0:0};
-
-  /** @type {Array<{x:number,y:number,vx:number,vy:number,alive:boolean,reached:boolean,step:number,genome:Array<{ax:number,ay:number}>,fitness:number,color:string,trail:Array<{x:number,y:number}>,trailAge:number}>} */
-  let pop = [];
-
-  // ======= Layout/resize =======
-  function resize(){
-    const rect = pane.getBoundingClientRect();
-    let w = rect.width;
-    let h = rect.height;
-    if (!w || !h || w < 100 || h < 100) {
-      pane.style.minHeight = '640px';
-      const r2 = pane.getBoundingClientRect();
-      w = r2.width || 960;
-      h = r2.height || 640;
-      console.info('[Evo] Fallback de tamaño aplicado', w, h);
+  function nearestOnPolyline(p, stats){
+    let best={dist:Infinity, segIdx:0, t:0, s:0, nx:p.x, ny:p.y};
+    for(let i=0;i<stats.segs.length;i++){
+      const s=stats.segs[i]; const n=pointSegNearest(p.x,p.y,s.a.x,s.a.y,s.b.x,s.b.y);
+      if(n.dist<best.dist){ best={dist:n.dist, segIdx:i, t:n.t, s:stats.cum[i]+n.t*s.L, nx:n.nx, ny:n.ny}; }
     }
-    const dpr = Math.min(window.devicePixelRatio||1,2);
-    canvas.width = Math.floor(w*dpr);
-    canvas.height = Math.floor(h*dpr);
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return best;
+  }
 
-    // Posiciones iniciales relativas al tamaño del canvas (solo la primera vez o si no moviste el target)
-    if (!autoPlaced) {
-      startPos.x = Math.round(w * 0.12);
-      startPos.y = Math.round(h * 0.86);
-      target.x = Math.round(w * 0.82);
-      target.y = Math.round(h * 0.18);
-      // Obstáculos de demo dentro del área visible
-      obstacles = [
-        { x: Math.round(w*0.22), y: Math.round(h*0.62), w: Math.round(w*0.36), h: 12 },
-        { x: Math.round(w*0.26), y: Math.round(h*0.38), w: Math.round(w*0.32), h: 12 },
-      ];
+  function pickColor(i){const p=["#60a5fa","#22c55e","#f59e0b","#e879f9","#a78bfa","#34d399","#f97316","#fb7185"];return p[i%p.length]}
+
+  // =================== Estado global ===================
+  const canvas=document.getElementById('sim');
+  const pane=document.getElementById('canvas-pane');
+  const statsEl=document.getElementById('stats');
+
+  // Genética/Sim
+  let running=true;
+  let populationSize=240;
+  let geneSteps=600;
+  let mutationRate=0.05;
+  let elitism=8;
+
+  // Auto
+  let speedMultiplier=8; // slider "velocidad" (cuántos steps por frame)
+  let baseFriction=0.02;
+
+  // Medición
+  let generation=1; let stepIndex=0; let bestProgress=0; let finishedCount=0; let aliveCount=0;
+
+  // Pista
+  let trackWidth=70; let trackType='oval';
+  let trackPts=[]; let trackStats=null; let trackLen=1; let checkpoints=[];
+
+  // Población
+  /** @type {Array<{x:number,y:number,a:number,v:number,alive:boolean,done:boolean,step:number,genome:Array<{steer:number,throttle:number}>,fitness:number,color:string,trail:Array<{x:number,y:number}>,trailAge:number,progress:number}>} */
+  let pop=[];
+
+  // =================== Pista ===================
+  const TRACK_TEMPLATES={
+    oval:(w,h)=>[[0.18,0.80],[0.30,0.87],[0.70,0.87],[0.84,0.80],[0.84,0.20],[0.70,0.13],[0.30,0.13],[0.18,0.20]].map(([x,y])=>({x:x*w,y:y*h})),
+    s:(w,h)=>[[0.15,0.80],[0.35,0.70],[0.65,0.90],[0.85,0.70],[0.65,0.50],[0.35,0.30],[0.15,0.20]].map(([x,y])=>({x:x*w,y:y*h})),
+    ocho:(w,h)=>[[0.20,0.75],[0.45,0.75],[0.55,0.25],[0.80,0.25],[0.55,0.75],[0.20,0.25]].map(([x,y])=>({x:x*w,y:y*h})),
+  };
+
+  function buildTrack(){
+    const r=pane.getBoundingClientRect(); let w=r.width||960, h=r.height||640;
+    trackPts=TRACK_TEMPLATES[trackType](w,h);
+    trackStats=polylineStats(trackPts);
+    trackLen=trackStats.len;
+    // checkpoints: cada ~10% del largo
+    checkpoints=[]; const step=trackLen/10; let acc=0, idx=0;
+    for(let i=0;i<trackStats.segs.length;i++){
+      const s=trackStats.segs[i]; let used=0;
+      while(acc+step<=trackStats.cum[i]+s.L+1e-6){
+        const t=(acc+step-trackStats.cum[i])/s.L; const x=lerp(s.a.x,s.b.x,t), y=lerp(s.a.y,s.b.y,t); checkpoints.push({x,y,r:Math.max(10,trackWidth*0.45)}); acc+=step; used++;
+      }
+      if(i===0 && checkpoints.length===0){
+        // ensure first
+        checkpoints.push({x:s.a.x,y:s.a.y,r:Math.max(10,trackWidth*0.45)});
+      }
+      idx+=used;
     }
   }
-  new ResizeObserver(resize).observe(document.documentElement);
-  resize();
 
-  // ======= Seed / Evolución =======
-  function seedPopulation(genomes){
-    pop.length = 0;
-    for(let i=0;i<populationSize;i++){
-      const genome = genomes? cloneGenome(genomes[i%genomes.length]) : createGenome(geneSteps);
-      pop.push({x:startPos.x,y:startPos.y,vx:0,vy:0,alive:true,reached:false,step:0,genome,fitness:0,color:pickColor(i),trail:[],trailAge:0});
+  // =================== Genomas (autos) ===================
+  function createGenome(n){
+    const g=new Array(n);
+    for(let i=0;i<n;i++) g[i]={steer:(Math.random()*2-1), throttle:Math.random()};
+    return g;
+  }
+  function cloneGenome(g){return g.map(v=>({steer:v.steer, throttle:v.throttle}))}
+  function mutateGenome(g, rate, sigma=0.25){
+    for(let i=0;i<g.length;i++) if(Math.random()<rate){
+      const v=g[i]; v.steer=clamp(v.steer+randn(0,sigma),-1,1); v.throttle=clamp(v.throttle+randn(0,sigma*0.6),0,1);
     }
-    bestDist = Infinity; reachedCount = 0; stepIndex = 0;
+  }
+  function crossover(g1,g2){ const out=new Array(g1.length); for(let i=0;i<g1.length;i++) out[i]=Math.random()<0.5?{...g1[i]}:{...g2[i]}; return out; }
+
+  // =================== Seed / Evolución ===================
+  function seedPopulation(genomes){
+    const start = trackPts[0]; const next = trackPts[1]||{x:start.x+1,y:start.y};
+    const ang = Math.atan2(next.y-start.y, next.x-start.x);
+    pop.length=0; bestProgress=0; finishedCount=0; stepIndex=0;
+    for(let i=0;i<populationSize;i++){
+      const g = genomes? cloneGenome(genomes[i%genomes.length]) : createGenome(geneSteps);
+      pop.push({x:start.x, y:start.y, a:ang, v:0, alive:true, done:false, step:0, genome:g, fitness:0, color:pickColor(i), trail:[], trailAge:0, progress:0});
+    }
   }
 
   function evolve(){
-    // fitness y métrica
-    let reached=0; let best=Infinity;
-    for(const a of pop){
-      const dx=a.x-target.x, dy=a.y-target.y; const dist=Math.hypot(dx,dy);
-      if(a.reached){ a.fitness = 10000 + (geneSteps - a.step); reached++; }
-      else { a.fitness = 1/(1+dist); }
-      if(dist<best) best=dist;
-    }
-    bestDist = best; reachedCount = reached;
+    // fitness = mejor progreso alcanzado a lo largo del episodio
+    for(const a of pop) a.fitness = Math.max(0, a.progress);
 
-    // ruleta
-    const totalFit = pop.reduce((s,a)=>s+a.fitness,0)||1;
-    const pick = ()=>{ let r=Math.random()*totalFit; for(const a of pop){ r -= a.fitness; if(r<=0) return a;} return pop[pop.length-1] };
+    const totalFit = pop.reduce((s,a)=>s+a.fitness,0) || 1;
+    const pick = ()=>{let r=Math.random()*totalFit; for(const a of pop){ r-=a.fitness; if(r<=0) return a;} return pop[pop.length-1]};
 
-    // elitismo + reproducción
-    const sorted = [...pop].sort((a,b)=>b.fitness-a.fitness);
-    const next = [];
-    for(let i=0;i<Math.min(elitism,sorted.length);i++) next.push(newAgentFromGenome(cloneGenome(sorted[i].genome)));
-    while(next.length<populationSize){
-      const p1=pick(), p2=pick();
-      const child = crossover(p1.genome,p2.genome);
-      mutateGenome(child,mutationRate);
-      next.push(newAgentFromGenome(child));
-    }
-    pop = next; generation++; stepIndex=0;
+    const sorted=[...pop].sort((A,B)=>B.fitness-A.fitness);
+    const next=[];
+    for(let i=0;i<Math.min(elitism,sorted.length);i++) next.push(newCarFromGenome(cloneGenome(sorted[i].genome)));
+    while(next.length<populationSize){ const p1=pick(), p2=pick(); const child=crossover(p1.genome,p2.genome); mutateGenome(child, mutationRate); next.push(newCarFromGenome(child)); }
+    pop=next; generation++; stepIndex=0; finishedCount=0; bestProgress=0;
   }
 
-  function newAgentFromGenome(genome){
-    return {x:startPos.x,y:startPos.y,vx:0,vy:0,alive:true,reached:false,step:0,genome,fitness:0,color:pickColor(Math.floor(Math.random()*99999)),trail:[],trailAge:0};
+  function newCarFromGenome(genome){
+    const start = trackPts[0]; const next = trackPts[1]||{x:start.x+1,y:start.y};
+    const ang = Math.atan2(next.y-start.y, next.x-start.x);
+    return {x:start.x,y:start.y,a:ang,v:0,alive:true,done:false,step:0,genome,fitness:0,color:pickColor(Math.floor(Math.random()*9999)),trail:[],trailAge:0,progress:0};
   }
 
-  // ======= Sim =======
-  let last = performance.now();
-  let rafId = 0;
+  // =================== Simulación ===================
+  let last=performance.now(); let rafId=0;
   function loop(){
     try{
-      const now = performance.now();
-      const dt = Math.min(0.04,(now-last)/1000); // clamp
-      last = now;
-      if(running){ for(let s=0;s<speed;s++) step(dt); }
-      render();
-      rafId = requestAnimationFrame(loop);
-    }catch(err){
-      console.error('[Evo] Loop error', err);
-      cancelAnimationFrame(rafId);
-      statsEl.textContent = 'Error: ' + (err && err.message ? err.message : err);
-    }
+      const now=performance.now(); const dt=Math.min(0.04,(now-last)/1000); last=now;
+      if(running){ for(let s=0;s<speedMultiplier;s++) step(dt); }
+      render(); rafId=requestAnimationFrame(loop);
+    }catch(err){ console.error('[AutoEvo] Loop error',err); cancelAnimationFrame(rafId); statsEl.textContent='Error: '+(err?.message||err); }
   }
 
   function step(dt){
-    const W = canvas.clientWidth, H = canvas.clientHeight;
-    if (!W || !H) return; // si aún no hay layout, esperar al próximo frame
-    let allDone = true;
+    const W=canvas.clientWidth, H=canvas.clientHeight; if(!W||!H) return;
+    aliveCount=0;
     for(const a of pop){
-      if(!a.alive || a.reached) continue; allDone=false;
-      const g = a.genome[a.step] || {ax:0, ay:0};
-      const accel = 80;
-      a.vx += g.ax*accel*dt;
-      a.vy += (g.ay*accel + gravity)*dt;
-      const vmax=240; const m=Math.hypot(a.vx,a.vy); if(m>vmax){ a.vx=(a.vx/m)*vmax; a.vy=(a.vy/m)*vmax; }
-      a.x += a.vx*dt; a.y += a.vy*dt;
-      // muros
-      if(a.x<4||a.x>W-4||a.y<4||a.y>H-4){ a.alive=false; continue; }
-      // obstáculos
-      for(const o of obstacles){ if(a.x>=o.x && a.x<=o.x+o.w && a.y>=o.y && a.y<=o.y+o.h){ a.alive=false; break; } }
-      if(!a.alive) continue;
-      // target
-      const dx=a.x-target.x, dy=a.y-target.y; if(dx*dx+dy*dy<=target.r*target.r){ a.reached=true; }
-      a.step++;
-      a.trailAge++; if(a.trailAge%3===0){ a.trail.push({x:a.x,y:a.y}); if(a.trail.length>50) a.trail.shift(); }
-      if(a.step>=geneSteps) a.alive=false;
+      if(!a.alive || a.done) continue; aliveCount++;
+      const g=a.genome[a.step] || {steer:0, throttle:0};
+      // Dinámica simple de auto (no-slip):
+      const maxSteer=2.2; // rad/s
+      const maxAccel=170; // px/s^2
+      const maxSpeed=320; // px/s
+      const fric=baseFriction; // lineal
+
+      a.a += g.steer * maxSteer * dt;
+      a.v += (g.throttle * maxAccel - fric*a.v) * dt;
+      a.v = clamp(a.v, 0, maxSpeed);
+      a.x += Math.cos(a.a) * a.v * dt;
+      a.y += Math.sin(a.a) * a.v * dt;
+
+      // Progreso sobre el polilíneo de la pista
+      const near=nearestOnPolyline({x:a.x,y:a.y}, trackStats);
+      a.progress = Math.max(a.progress, near.s / trackLen);
+      if(a.progress>=0.999){ a.done=true; finishedCount++; }
+
+      // Off‑track?
+      if(near.dist > trackWidth*0.5 + 4){ a.alive=false; }
+
+      // trail
+      a.trailAge++; if(a.trailAge%3===0){ a.trail.push({x:a.x,y:a.y}); if(a.trail.length>45) a.trail.shift(); }
+
+      a.step++; if(a.step>=geneSteps) a.alive=false;
+      bestProgress=Math.max(bestProgress, a.progress);
     }
     stepIndex++;
-    if (allDone || stepIndex>=geneSteps+2) evolve();
+    // Termina gen si todos murieron o llegamos al límite
+    if(aliveCount===0 || stepIndex>=geneSteps+2) evolve();
   }
 
+  // =================== Render ===================
   function render(){
-    const ctx = canvas.getContext('2d');
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    // grid
-    ctx.save(); ctx.globalAlpha=.25; ctx.strokeStyle="#0f172a"; ctx.lineWidth=1;
-    for(let x=0;x<w;x+=40){ ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,h); ctx.stroke(); }
-    for(let y=0;y<h;y+=40){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(w,y+.5); ctx.stroke(); }
-    ctx.restore();
-    // obstáculos
-    ctx.fillStyle = "#1f2937";
-    for(const o of obstacles){ ctx.fillRect(o.x,o.y,o.w,o.h); }
-    // target
-    ctx.beginPath(); ctx.arc(target.x,target.y,target.r+6,0,Math.PI*2); ctx.fillStyle="rgba(16,185,129,.18)"; ctx.fill();
-    ctx.beginPath(); ctx.arc(target.x,target.y,target.r,0,Math.PI*2); ctx.fillStyle=varOk(); ctx.fill();
-    // start
-    ctx.beginPath(); ctx.arc(startPos.x,startPos.y,8,0,Math.PI*2); ctx.fillStyle=varBlue(); ctx.fill();
-    // trails
+    const ctx=canvas.getContext('2d'); const w=canvas.clientWidth, h=canvas.clientHeight; if(!w||!h) return; ctx.clearRect(0,0,w,h);
+    // Fondo cuadriculado leve
+    ctx.save(); ctx.globalAlpha=.22; ctx.strokeStyle="#0f172a"; for(let x=0;x<w;x+=40){ ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,h); ctx.stroke(); } for(let y=0;y<h;y+=40){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(w,y+.5); ctx.stroke(); } ctx.restore();
+
+    // Pista (carretera ancha)
+    if(trackPts.length>1){
+      ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.lineWidth=trackWidth; ctx.strokeStyle='rgba(15,23,42,0.95)';
+      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.stroke();
+      // líneas de borde
+      ctx.lineWidth=2; ctx.strokeStyle='#0ea5e9';
+      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.stroke();
+    }
+
+    // Checkpoints (circulitos translúcidos)
+    for(const c of checkpoints){ ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fillStyle='rgba(99,102,241,0.10)'; ctx.fill(); }
+
+    // Inicio
+    const s=trackPts[0], n=trackPts[1]||s; ctx.beginPath(); ctx.arc(s.x,s.y,7,0,Math.PI*2); ctx.fillStyle='#3b82f6'; ctx.fill();
+
+    // Trails y autos
     ctx.save(); ctx.globalCompositeOperation='lighter';
-    for(const a of pop){ if(a.trail.length>1){ ctx.beginPath(); for(let i=0;i<a.trail.length;i++){const p=a.trail[i]; if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);} ctx.strokeStyle=a.color; ctx.lineWidth=1; ctx.stroke(); }}
+    for(const a of pop){ if(a.trail.length>1){ ctx.beginPath(); for(let i=0;i<a.trail.length;i++){ const p=a.trail[i]; if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);} ctx.strokeStyle=a.color; ctx.lineWidth=1; ctx.stroke(); } }
     ctx.restore();
-    // agentes
-    for(const a of pop){ ctx.beginPath(); ctx.arc(a.x,a.y,3,0,Math.PI*2); ctx.fillStyle=a.reached?varOk():a.alive?a.color:'#64748b'; ctx.fill(); }
-    // stats
-    statsEl.textContent = `Gen ${generation} · Paso ${stepIndex} / ${geneSteps} · Llegaron ${reachedCount} · Mejor ${formatBestDist(bestDist)}`;
+    for(const a of pop){
+      ctx.save(); ctx.translate(a.x,a.y); ctx.rotate(a.a);
+      // Auto: triangulito
+      ctx.beginPath(); ctx.moveTo(8,0); ctx.lineTo(-6,4); ctx.lineTo(-6,-4); ctx.closePath();
+      ctx.fillStyle = a.done ? '#10b981' : a.alive ? a.color : '#64748b';
+      ctx.fill(); ctx.restore();
+    }
+
+    // Stats
+    const progPct = Math.round((bestProgress||0)*100);
+    statsEl.textContent = `Gen ${generation} · Paso ${stepIndex} / ${geneSteps} · En pista ${aliveCount} · Mejor ${progPct}% · Completaron ${finishedCount}`;
   }
 
-  function varOk(){return getComputedStyle(document.documentElement).getPropertyValue('--ok').trim()||'#10b981'}
-  function varBlue(){return getComputedStyle(document.documentElement).getPropertyValue('--blue').trim()||'#3b82f6'}
-
-  // ======= Interacción =======
-  function getPos(ev){ const r=canvas.getBoundingClientRect(); return {x:ev.clientX-r.left, y:ev.clientY-r.top} }
-  canvas.addEventListener('mousedown', (ev)=>{
-    const p=getPos(ev); const d2=(p.x-target.x)**2+(p.y-target.y)**2;
-    if(d2 <= (target.r+12)**2){ target.dragging=true; return; }
-    if(ev.shiftKey){ drawing.drawing=true; drawing.x0=p.x; drawing.y0=p.y; }
-    if(ev.altKey){ obstacles = obstacles.filter(o=>!(p.x>=o.x && p.x<=o.x+o.w && p.y>=o.y && p.y<=o.y+o.h)); }
-  });
-  window.addEventListener('mousemove', (ev)=>{
-    const p=getPos(ev); if(target.dragging){ target.x=p.x; target.y=p.y; autoPlaced = true; }
-  });
-  window.addEventListener('mouseup', (ev)=>{
-    const p=getPos(ev); if(target.dragging){ target.dragging=false; return; }
-    if(drawing.drawing){ const rect=normalizeRect(drawing.x0,drawing.y0,p.x,p.y); if(rect.w>6 && rect.h>6) obstacles.push(rect); drawing.drawing=false; }
-  });
-  function normalizeRect(x0,y0,x1,y1){ const x=Math.min(x0,x1), y=Math.min(y0,y1); const w=Math.abs(x1-x0), h=Math.abs(y1-y0); return {x,y,w,h}; }
-
-  // ======= Controles =======
-  document.getElementById('btn-toggle').addEventListener('click',()=>{
-    running=!running; document.getElementById('btn-toggle').textContent = running? 'Pausar':'Reanudar';
-  });
-  document.getElementById('btn-reset').addEventListener('click',()=>{ generation=1; seedPopulation(); });
-  document.getElementById('btn-next').addEventListener('click',()=>evolve());
-
-  bindRange('speed', v=>{ speed = v; });
-  bindRange('gravity', v=>{ gravity = v; });
-  bindRange('populationSize', v=>{ populationSize = v; document.getElementById('lbl-pop').textContent = v; generation=1; seedPopulation(); });
-  bindRange('geneSteps', v=>{ geneSteps = v; document.getElementById('lbl-steps').textContent = v; generation=1; seedPopulation(); });
-  bindRange('mutationRate', v=>{ mutationRate = v; document.getElementById('lbl-mutation').textContent = (+v).toFixed(3); });
-  bindRange('elitism', v=>{ elitism = v; document.getElementById('lbl-elitism').textContent = v; });
-
-  document.getElementById('btn-obs-clear').addEventListener('click',()=>{ obstacles=[]; });
-  document.getElementById('btn-obs-rand').addEventListener('click',()=>{ obstacles = makeRandomObstacles(); });
-
-  function bindRange(id, on){ const el=document.getElementById(id); const parse=el.step && el.step.indexOf('.')>-1 ? parseFloat : v=>parseInt(v,10); el.addEventListener('input',()=>on(parse(el.value))); }
-
-  function makeRandomObstacles(){
-    const W=canvas.clientWidth, H=canvas.clientHeight; const n=Math.floor(2+Math.random()*5); const arr=[];
-    for(let i=0;i<n;i++){ const w=80+Math.random()*240; const h=8+Math.random()*16; const x=80+Math.random()*(W-160-w); const y=80+Math.random()*(H-160-h); arr.push({x,y,w,h}); }
-    return arr;
+  // =================== Layout/Boot ===================
+  function resize(){
+    const rect=pane.getBoundingClientRect(); let w=rect.width||960, h=rect.height||640; const dpr=Math.min(window.devicePixelRatio||1,2);
+    canvas.width=Math.floor(w*dpr); canvas.height=Math.floor(h*dpr); const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    buildTrack();
   }
-
-  // ======= Tests mínimos =======
-  (function runTests(){
-    console.group('%cTests','color:#22c55e');
-    console.assert(formatBestDist(Infinity)==='∞','formatBestDist(Infinity) debe ser "∞"');
-    console.assert(safeFmt(1,3)==='1.000','safeFmt(1,3)');
-    console.assert(safeFmt(undefined)==='—','safeFmt(undefined)');
-    console.assert(safeFmt(NaN)==='—','safeFmt(NaN)');
-    // Mutación no debe crear vectores con magnitud > 1
-    const g=createGenome(32); mutateGenome(g,1,10); const ok=g.every(v=>Math.hypot(v.ax,v.ay)<=1+1e-9); console.assert(ok,'mutateGenome mantiene |v|<=1');
-    console.groupEnd();
-  })();
-
-  // ======= Boot =======
-  // Kickstart con doble intento por si el layout tarda
+  new ResizeObserver(resize).observe(document.documentElement);
   resize();
   seedPopulation();
   render();
-  setTimeout(() => { if(!canvas.clientWidth || !canvas.clientHeight){ resize(); render(); } }, 60);
+  setTimeout(()=>{ if(!canvas.clientWidth||!canvas.clientHeight){ resize(); render(); } },60);
   loop();
+
+  // =================== Controles ===================
+  document.getElementById('btn-toggle').addEventListener('click',()=>{ running=!running; document.getElementById('btn-toggle').textContent=running?'Pausar':'Reanudar'; });
+  document.getElementById('btn-reset').addEventListener('click',()=>{ generation=1; seedPopulation(); });
+  document.getElementById('btn-next').addEventListener('click',()=>evolve());
+
+  // Sliders
+  bindRange('speed', v=>{ speedMultiplier=v; });
+  bindRange('fric', v=>{ baseFriction=v; });
+  bindRange('populationSize', v=>{ populationSize=v; document.getElementById('lbl-pop').textContent=v; generation=1; seedPopulation(); });
+  bindRange('geneSteps', v=>{ geneSteps=v; document.getElementById('lbl-steps').textContent=v; generation=1; seedPopulation(); });
+  bindRange('mutationRate', v=>{ mutationRate=v; document.getElementById('lbl-mutation').textContent=(+v).toFixed(3); });
+  bindRange('elitism', v=>{ elitism=v; document.getElementById('lbl-elitism').textContent=v; });
+  bindRange('trackWidth', v=>{ trackWidth=v; document.getElementById('lbl-width').textContent=v; render(); });
+  document.getElementById('trackType').addEventListener('change', (e)=>{ trackType=e.target.value; buildTrack(); seedPopulation(); });
+
+  function bindRange(id,on){ const el=document.getElementById(id); const parse=el.step&&el.step.indexOf('.')>-1?parseFloat:(v)=>parseInt(v,10); el.addEventListener('input',()=>on(parse(el.value))); }
+
+  // =================== Tests mínimos ===================
+  (function runTests(){
+    console.group('%cTests','color:#22c55e');
+    // 1) nearest de segmento
+    const n=pointSegNearest(5,0,0,0,10,0); console.assert(Math.abs(n.dist-0)<1e-6 && Math.abs(n.t-0.5)<1e-6,'nearest segmento medio');
+    // 2) polylineStats
+    const st=polylineStats([{x:0,y:0},{x:3,y:0},{x:3,y:4}]); console.assert(Math.abs(st.len-7)<1e-6,'len 3+4=7');
+    // 3) progreso a 50%
+    const st2=polylineStats([{x:0,y:0},{x:10,y:0}]); const near=nearestOnPolyline({x:5,y:2},st2); console.assert(Math.abs(near.s/st2.len-0.5)<1e-6,'s 50%');
+    console.groupEnd();
+  })();
   </script>
 </body>
 </html>
