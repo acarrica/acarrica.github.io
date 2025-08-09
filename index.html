@@ -24,7 +24,7 @@
     .muted{color:var(--muted)}
     .main{display:grid;grid-template-columns:1fr 360px;gap:16px;padding:12px}
     @media (max-width: 1024px){.main{grid-template-columns:1fr}}
-    .canvas-pane{position:relative;min-height:62vh;height:78vh;border:1px solid #0b1222;border-radius:16px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.3)background:var(--bg);} 
+    .canvas-pane{position:relative;min-height:62vh;height:78vh;border:1px solid #0b1222;border-radius:16px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.3);background:var(--bg);} 
     canvas{width:100%;height:100%;display:block;cursor:crosshair}
     .btn{background:rgba(30,41,59,.8);color:var(--text);border:none;border-radius:12px;padding:8px 12px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.25)}
     .btn:hover{background:#334155}
@@ -215,18 +215,26 @@
   }
 
   // =================== Genomas (autos) ===================
-  function createGenome(n){
-    const g=new Array(n);
-    for(let i=0;i<n;i++) g[i]={steer:(Math.random()*2-1), throttle:Math.random()};
+  // Control reactivo con pesos (no secuencia temporal):
+  // inputs = [bias, lateral, headingErr, speedNorm, progress]
+  const N_INPUTS = 5;
+  function createGenome(){
+    const g={ wS:new Array(N_INPUTS), wT:new Array(N_INPUTS) };
+    for(let i=0;i<N_INPUTS;i++){ g.wS[i]=randn(0,1); g.wT[i]=randn(0,1); }
     return g;
   }
-  function cloneGenome(g){return g.map(v=>({steer:v.steer, throttle:v.throttle}))}
-  function mutateGenome(g, rate, sigma=0.25){
-    for(let i=0;i<g.length;i++) if(Math.random()<rate){
-      const v=g[i]; v.steer=clamp(v.steer+randn(0,sigma),-1,1); v.throttle=clamp(v.throttle+randn(0,sigma*0.6),0,1);
+  function cloneGenome(g){ return { wS:[...g.wS], wT:[...g.wT] }; }
+  function mutateGenome(g, rate, sigma=0.35){
+    for(let i=0;i<N_INPUTS;i++){
+      if(Math.random()<rate) g.wS[i]+=randn(0,sigma);
+      if(Math.random()<rate) g.wT[i]+=randn(0,sigma);
     }
   }
-  function crossover(g1,g2){ const out=new Array(g1.length); for(let i=0;i<g1.length;i++) out[i]=Math.random()<0.5?{...g1[i]}:{...g2[i]}; return out; }
+  function crossover(g1,g2){
+    const out={ wS:new Array(N_INPUTS), wT:new Array(N_INPUTS) };
+    for(let i=0;i<N_INPUTS;i++){ out.wS[i] = Math.random()<0.5? g1.wS[i] : g2.wS[i]; out.wT[i] = Math.random()<0.5? g1.wT[i] : g2.wT[i]; }
+    return out;
+  }
 
   // =================== Seed / Evolución ===================
   function seedPopulation(genomes){
@@ -234,7 +242,7 @@
     const ang = Math.atan2(next.y-start.y, next.x-start.x);
     pop.length=0; bestProgress=0; finishedCount=0; stepIndex=0;
     for(let i=0;i<populationSize;i++){
-      const g = genomes? cloneGenome(genomes[i%genomes.length]) : createGenome(geneSteps);
+      const g = genomes? cloneGenome(genomes[i%genomes.length]) : createGenome();
       pop.push({x:start.x, y:start.y, a:ang, v:0, alive:true, done:false, step:0, genome:g, fitness:0, color:pickColor(i), trail:[], trailAge:0, progress:0, chk:0, onTrackTicks:0, centerSum:0, offTicks:0});
     }
   }
@@ -264,6 +272,7 @@
     const ang = Math.atan2(next.y-start.y, next.x-start.x);
     return {x:start.x,y:start.y,a:ang,v:0,alive:true,done:false,step:0,genome,fitness:0,color:pickColor(Math.floor(Math.random()*9999)),trail:[],trailAge:0,progress:0, chk:0, onTrackTicks:0, centerSum:0, offTicks:0};
   }
+  }
 
   // =================== Simulación ===================
   let last=performance.now(); let rafId=0;
@@ -280,21 +289,38 @@
     aliveCount=0;
     for(const a of pop){
       if(!a.alive || a.done) continue; aliveCount++;
-      const g=a.genome[a.step] || {steer:0, throttle:0};
-      // Dinámica simple de auto (no-slip):
-      const maxSteer=3.0; // rad/s (subido para tomar curvas)
-      const maxAccel=220; // px/s^2 (un poco más de empuje)
-      const maxSpeed=340; // px/s
-      const fric=baseFriction; // lineal
+      // Control reactivo por pesos: entradas observables
+      const near = nearestOnPolyline({x:a.x,y:a.y}, trackStats);
+      const seg = trackStats.segs[Math.min(near.segIdx, trackStats.segs.length-1)];
+      const tx = seg ? (seg.b.x - seg.a.x) : 1, ty = seg ? (seg.b.y - seg.a.y) : 0;
+      const segAng = Math.atan2(ty, tx);
+      // normal unitaria
+      const tmag = Math.hypot(tx,ty) || 1; const nx = -ty / tmag, ny = tx / tmag;
+      const dx = a.x - near.nx, dy = a.y - near.ny;
+      const lateralSigned = (dx*nx + dy*ny) / (trackWidth*0.5 + 1e-6); // [-inf,inf]
+      let headingErr = a.a - segAng; while(headingErr>Math.PI) headingErr-=2*Math.PI; while(headingErr<-Math.PI) headingErr+=2*Math.PI; headingErr /= Math.PI; // [-1,1]
+      const speedNorm = a.v / 340; // maxSpeed approx
+      const progressFrac = near.s / trackLen;
+      const x = [1, clamp(lateralSigned,-2,2), clamp(headingErr,-1,1), clamp(speedNorm,0,1), clamp(progressFrac,0,1)];
+      // Activación lineal->tanh/sigmoid
+      const dot = (w)=> w[0]*x[0] + w[1]*x[1] + w[2]*x[2] + w[3]*x[3] + w[4]*x[4];
+      const steerCmd = Math.tanh(dot(a.genome.wS)); // [-1,1]
+      const throttleCmd = 1/(1+Math.exp(-dot(a.genome.wT))); // [0,1]
 
-      a.a += g.steer * maxSteer * dt;
-      a.v += (g.throttle * maxAccel - fric*a.v) * dt;
+      // Dinámica simple de auto
+      const maxSteer=4.5; // rad/s (más giro para poder doblar)
+      const maxAccel=260; // px/s^2
+      const maxSpeed=360; // px/s
+      const fric=baseFriction;
+
+      a.a += steerCmd * maxSteer * dt;
+      a.v += (throttleCmd * maxAccel - fric*a.v) * dt;
       a.v = clamp(a.v, 0, maxSpeed);
       a.x += Math.cos(a.a) * a.v * dt;
       a.y += Math.sin(a.a) * a.v * dt;
 
       // Progreso por checkpoints + métrica de pista
-      const near = nearestOnPolyline({x:a.x,y:a.y}, trackStats);
+      // (ya calculado arriba) const near = nearestOnPolyline({x:a.x,y:a.y}, trackStats);
       // contador de tiempo dentro de pista y centrado
       // margen efectivo: mitad del ancho menos el radio del auto y el semigrosor del borde (~2px)
       const limit = Math.max(0, trackWidth*0.5 - CAR_RADIUS);
