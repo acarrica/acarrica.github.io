@@ -140,12 +140,13 @@
   let bestDist = Infinity;
   let reachedCount = 0;
 
+  // Se recalculan en el primer resize según el tamaño del canvas
   const startPos = {x:80,y:520};
   const target = {x:700,y:100,r:14,dragging:false};
-  let obstacles = [
-    {x:180,y:380,w:360,h:12},
-    {x:220,y:230,w:320,h:12},
-  ];
+  let autoPlaced = false; // si aún no moviste el objetivo, reposiciono en resize
+
+  // Obstáculos iniciales (se regeneran en el primer resize para entrar en pantalla)
+  let obstacles = [];
   const drawing = {drawing:false,x0:0,y0:0};
 
   /** @type {Array<{x:number,y:number,vx:number,vy:number,alive:boolean,reached:boolean,step:number,genome:Array<{ax:number,ay:number}>,fitness:number,color:string,trail:Array<{x:number,y:number}>,trailAge:number}>} */
@@ -156,9 +157,7 @@
     const rect = pane.getBoundingClientRect();
     let w = rect.width;
     let h = rect.height;
-    // Fallback por si el contenedor todavía no tiene layout (evita canvas 0x0)
     if (!w || !h || w < 100 || h < 100) {
-      // fuerza un alto razonable y reintenta
       pane.style.minHeight = '640px';
       const r2 = pane.getBoundingClientRect();
       w = r2.width || 960;
@@ -170,6 +169,19 @@
     canvas.height = Math.floor(h*dpr);
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    // Posiciones iniciales relativas al tamaño del canvas (solo la primera vez o si no moviste el target)
+    if (!autoPlaced) {
+      startPos.x = Math.round(w * 0.12);
+      startPos.y = Math.round(h * 0.86);
+      target.x = Math.round(w * 0.82);
+      target.y = Math.round(h * 0.18);
+      // Obstáculos de demo dentro del área visible
+      obstacles = [
+        { x: Math.round(w*0.22), y: Math.round(h*0.62), w: Math.round(w*0.36), h: 12 },
+        { x: Math.round(w*0.26), y: Math.round(h*0.38), w: Math.round(w*0.32), h: 12 },
+      ];
+    }
   }
   new ResizeObserver(resize).observe(document.documentElement);
   resize();
@@ -236,6 +248,7 @@
 
   function step(dt){
     const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return; // si aún no hay layout, esperar al próximo frame
     let allDone = true;
     for(const a of pop){
       if(!a.alive || a.reached) continue; allDone=false;
@@ -257,7 +270,7 @@
       if(a.step>=geneSteps) a.alive=false;
     }
     stepIndex++;
-    if(allDone || stepIndex>=geneSteps+2) evolve();
+    if (allDone || stepIndex>=geneSteps+2) evolve();
   }
 
   function render(){
@@ -299,7 +312,7 @@
     if(ev.altKey){ obstacles = obstacles.filter(o=>!(p.x>=o.x && p.x<=o.x+o.w && p.y>=o.y && p.y<=o.y+o.h)); }
   });
   window.addEventListener('mousemove', (ev)=>{
-    const p=getPos(ev); if(target.dragging){ target.x=p.x; target.y=p.y; }
+    const p=getPos(ev); if(target.dragging){ target.x=p.x; target.y=p.y; autoPlaced = true; }
   });
   window.addEventListener('mouseup', (ev)=>{
     const p=getPos(ev); if(target.dragging){ target.dragging=false; return; }
@@ -346,9 +359,10 @@
 
   // ======= Boot =======
   // Kickstart con doble intento por si el layout tarda
-  seedPopulation();
   resize();
-  setTimeout(() => { if(!canvas.clientWidth || !canvas.clientHeight){ resize(); } }, 60);
+  seedPopulation();
+  render();
+  setTimeout(() => { if(!canvas.clientWidth || !canvas.clientHeight){ resize(); render(); } }, 60);
   loop();
   </script>
 </body>
