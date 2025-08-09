@@ -343,16 +343,15 @@
     // Pista (solo calzada, sin líneas de borde)
     if(trackPts.length>1){
       ctx.lineJoin='round'; ctx.lineCap='round';
-      // 1) Trazo de bordes: un poco más ancho que la calzada
-      const roadColor = 'rgba(15,23,42,0.96)';
+      // Color contrastado con el fondo para que se vea SIEMPRE
+      const roadColor = '#1f2937'; // slate-800 (más claro que el fondo)
       ctx.strokeStyle = roadColor;
-      ctx.lineWidth = Math.max(1, trackWidth);
-      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.closePath(); ctx.stroke();
-      // 2) Calzada interior: ligeramente más angosta para que queden 2px de borde a cada lado
-      const roadColor = 'rgba(15,23,42,0.96)';
-      ctx.strokeStyle = roadColor;
-      ctx.lineWidth = Math.max(1, trackWidth - 4);
-      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.closePath(); ctx.stroke();
+      ctx.lineWidth = Math.max(4, trackWidth);
+      ctx.beginPath();
+      ctx.moveTo(trackPts[0].x,trackPts[0].y);
+      for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y);
+      ctx.closePath();
+      ctx.stroke();
     }
 
     // Inicio
