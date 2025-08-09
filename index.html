@@ -136,6 +136,15 @@
     return {segs, len, cum};
   }
 
+  // Versión cerrada: agrega segmento del último punto al primero (pista tipo "tubo" cerrado)
+  function polylineStatsClosed(pts){
+    const segs=[]; let len=0; const cum=[0];
+    if (pts.length < 2) return { segs, len: 0, cum: [0] };
+    for(let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1]; const L=Math.hypot(b.x-a.x,b.y-a.y); segs.push({a,b,L}); len+=L; cum.push(len); }
+    const a=pts[pts.length-1], b=pts[0]; const L=Math.hypot(b.x-a.x,b.y-a.y); segs.push({a,b,L}); len+=L; cum.push(len);
+    return { segs, len, cum };
+  }
+
   function nearestOnPolyline(p, stats){
     let best={dist:Infinity, segIdx:0, t:0, s:0, nx:p.x, ny:p.y};
     for(let i=0;i<stats.segs.length;i++){
@@ -184,7 +193,7 @@
   function buildTrack(){
     const r=pane.getBoundingClientRect(); let w=r.width||960, h=r.height||640;
     trackPts=TRACK_TEMPLATES[trackType](w,h);
-    trackStats=polylineStats(trackPts);
+    trackStats=polylineStatsClosed(trackPts);
     trackLen=trackStats.len;
     // checkpoints: cada ~10% del largo
     checkpoints=[]; const step=trackLen/10; let acc=0, idx=0;
@@ -283,13 +292,13 @@
       // Progreso por checkpoints + métrica de pista
       const near = nearestOnPolyline({x:a.x,y:a.y}, trackStats);
       // contador de tiempo dentro de pista y centrado
-      if (near.dist <= trackWidth*0.5 + 2) {
+      if ( near.dist <= trackWidth*0.5 ) {
         a.onTrackTicks++;
         const centeriness = 1 - clamp(near.dist / (trackWidth*0.5 + 1e-6), 0, 1);
         a.centerSum += centeriness;
-        a.offTicks = 0;
       } else {
-        a.offTicks = (a.offTicks||0) + 1;
+        a.alive = false;
+        continue;
       }
 
       // checkpoint actual
@@ -307,8 +316,8 @@
       if (a.chk >= checkpoints.length) { a.done = true; finishedCount++; }
 
       // Off‑track duro solo si se aleja mucho tiempo
-      const hardLimit = trackWidth*0.8 + 10;
-      if (near.dist > hardLimit || a.offTicks > 20) { a.alive = false; }
+      
+      
 
       // trail
       a.trailAge++; if(a.trailAge%3===0){ a.trail.push({x:a.x,y:a.y}); if(a.trail.length>45) a.trail.shift(); }
@@ -331,10 +340,10 @@
     if(trackPts.length>1){
       ctx.lineJoin='round'; ctx.lineCap='round';
       ctx.lineWidth=trackWidth; ctx.strokeStyle='rgba(15,23,42,0.95)';
-      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.closePath(); ctx.stroke();
       // líneas de borde
       ctx.lineWidth=2; ctx.strokeStyle='#0ea5e9';
-      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.closePath(); ctx.stroke();
     }
 
     // Checkpoints (circulitos translúcidos)
