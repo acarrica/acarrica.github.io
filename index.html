@@ -172,6 +172,10 @@
   let speedMultiplier=8; // slider "velocidad" (cuántos steps por frame)
   let baseFriction=0.02;
 
+  // Auto (geometría)
+  const CAR_SIDE = 10; // px
+  const CAR_RADIUS = Math.SQRT2 * CAR_SIDE / 2; // radio circunscrito (~7.07 para side=10)
+
   // Medición
   let generation=1; let stepIndex=0; let bestProgress=0; let finishedCount=0; let aliveCount=0;
 
@@ -292,11 +296,14 @@
       // Progreso por checkpoints + métrica de pista
       const near = nearestOnPolyline({x:a.x,y:a.y}, trackStats);
       // contador de tiempo dentro de pista y centrado
-      if ( near.dist <= trackWidth*0.5 ) {
+      // margen efectivo: mitad del ancho menos el radio del auto y el semigrosor del borde (~2px)
+      const limit = Math.max(0, trackWidth*0.5 - 2 - CAR_RADIUS);
+      if ( near.dist < limit ) {
         a.onTrackTicks++;
         const centeriness = 1 - clamp(near.dist / (trackWidth*0.5 + 1e-6), 0, 1);
         a.centerSum += centeriness;
       } else {
+        // Tocó la línea/borde del tubo: desaparece
         a.alive = false;
         continue;
       }
@@ -336,13 +343,18 @@
     // Fondo cuadriculado leve
     ctx.save(); ctx.globalAlpha=.22; ctx.strokeStyle="#0f172a"; for(let x=0;x<w;x+=40){ ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,h); ctx.stroke(); } for(let y=0;y<h;y+=40){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(w,y+.5); ctx.stroke(); } ctx.restore();
 
-    // Pista (carretera ancha)
+    // Pista (carretera ancha con doble línea de borde)
     if(trackPts.length>1){
       ctx.lineJoin='round'; ctx.lineCap='round';
-      ctx.lineWidth=trackWidth; ctx.strokeStyle='rgba(15,23,42,0.95)';
+      // 1) Trazo de bordes: un poco más ancho que la calzada
+      const edgeColor = '#0ea5e9';
+      ctx.strokeStyle = edgeColor;
+      ctx.lineWidth = Math.max(2, trackWidth + 4);
       ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.closePath(); ctx.stroke();
-      // líneas de borde
-      ctx.lineWidth=2; ctx.strokeStyle='#0ea5e9';
+      // 2) Calzada interior: ligeramente más angosta para que queden 2px de borde a cada lado
+      const roadColor = 'rgba(15,23,42,0.96)';
+      ctx.strokeStyle = roadColor;
+      ctx.lineWidth = Math.max(1, trackWidth - 4);
       ctx.beginPath(); ctx.moveTo(trackPts[0].x,trackPts[0].y); for(let i=1;i<trackPts.length;i++) ctx.lineTo(trackPts[i].x,trackPts[i].y); ctx.closePath(); ctx.stroke();
     }
 
@@ -359,15 +371,14 @@
     for(const a of pop){
       ctx.save(); ctx.translate(a.x,a.y); ctx.rotate(a.a);
       // Auto: cuadradito (orientado con la dirección)
-      const side = 10; // px
       ctx.fillStyle = a.done ? '#10b981' : a.alive ? a.color : '#64748b';
-      ctx.fillRect(-side/2, -side/2, side, side);
+      ctx.fillRect(-CAR_SIDE/2, -CAR_SIDE/2, CAR_SIDE, CAR_SIDE);
       // Indicador sutil del frente (línea corta)
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(side/2, -side*0.25);
-      ctx.lineTo(side/2, side*0.25);
+      ctx.moveTo(CAR_SIDE/2, -CAR_SIDE*0.25);
+      ctx.lineTo(CAR_SIDE/2, CAR_SIDE*0.25);
       ctx.stroke();
       ctx.restore();
     }
